@@ -7,6 +7,13 @@ This project is a ComfyUI version of
 
 I have ensured consistency with `sd-webui-segment-anything` in terms of output when given the same input.
 
+## Requirements
+
+Please ensure that you have installed Python dependencies using the following command:
+```
+pip3 install -r requirements.txt
+```
+
 ## Models
 
 The models will be automatically downloaded when used. You can also manually download them according to the table below. If the automatic download is slow, you can set the `HTTP_PROXY` and `HTTPS_PROXY` environment variables to use a proxy.
