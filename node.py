@@ -202,7 +202,7 @@ def split_image_mask(image):
     image_rgb = torch.from_numpy(image_rgb)[None,]
     if 'A' in image.getbands():
         mask = np.array(image.getchannel('A')).astype(np.float32) / 255.0
-        mask = 1. - torch.from_numpy(mask)
+        mask = torch.from_numpy(mask)[None,]
     else:
         mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
     return (image_rgb, mask)
