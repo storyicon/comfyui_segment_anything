@@ -141,24 +141,54 @@ def groundingdino_predict(
         image, _ = transform(image_pil, None)  # 3, h, w
         return image
 
+    def split_captions(input_string):
+        # Split the input string by the pipe character and strip whitespace
+        captions = input_string.split('|')
+        processed_captions = []
+
+        for caption in captions:
+            # Stripping whitespace and converting to lower case
+            cleaned_caption = caption.strip().lower()
+            
+            # Appending a terminal '.' if it doesn't already end with one
+            if not cleaned_caption.endswith('.'):
+                cleaned_caption += '.'
+
+            processed_captions.append(cleaned_caption)
+
+        return processed_captions
+
     def get_grounding_output(model, image, caption, box_threshold):
-        caption = caption.lower()
-        caption = caption.strip()
-        if not caption.endswith("."):
-            caption = caption + "."
+        # Split pipe-separated captions into a list and terminate
+        # them with a period as expected by the model.
+        captions = split_captions(caption)
+
+        # Move the image to the device.
         device = comfy.model_management.get_torch_device()
         image = image.to(device)
-        with torch.no_grad():
-            outputs = model(image[None], captions=[caption])
-        logits = outputs["pred_logits"].sigmoid()[0]  # (nq, 256)
-        boxes = outputs["pred_boxes"][0]  # (nq, 4)
-        # filter output
-        logits_filt = logits.clone()
-        boxes_filt = boxes.clone()
-        filt_mask = logits_filt.max(dim=1)[0] > box_threshold
-        logits_filt = logits_filt[filt_mask]  # num_filt, 256
-        boxes_filt = boxes_filt[filt_mask]  # num_filt, 4
-        return boxes_filt.cpu()
+
+        # Run the model on the captions iteratively, combining the outputs.
+        all_boxes = []
+
+        for caption in captions:
+            with torch.no_grad():
+                outputs = model(image[None], captions=[caption])
+            logits = outputs["pred_logits"].sigmoid()[0]  # (nq, 256)
+            boxes = outputs["pred_boxes"][0]  # (nq, 4)
+
+            # filter output
+            logits_filt = logits.clone()
+            boxes_filt = boxes.clone()
+            filt_mask = logits_filt.max(dim=1)[0] > box_threshold
+            logits_filt = logits_filt[filt_mask]  # num_filt, 256
+            boxes_filt = boxes_filt[filt_mask]  # num_filt, 4
+
+            logger.warn(f"boxes_filt.shape: {boxes_filt.shape}")
+            all_boxes.append(boxes_filt.cpu())
+
+        # Concatenate all the boxes along the 0 dimension and return.
+        boxes_filt_concat = torch.cat(all_boxes, dim=0)
+        return boxes_filt_concat.cpu()
 
     dino_image = load_dino_image(image.convert("RGB"))
     boxes_filt = get_grounding_output(
