@@ -6,6 +6,7 @@ sys.path.append(
 
 import copy
 import torch
+from torchvision.transforms import ToTensor
 import numpy as np
 from PIL import Image
 import logging
@@ -21,6 +22,7 @@ from local_groundingdino.util.slconfig import SLConfig as local_groundingdino_SL
 from local_groundingdino.models import build_model as local_groundingdino_build_model
 
 logger = logging.getLogger('comfyui_segment_anything')
+to_tensor = ToTensor()
 
 sam_model_dir = os.path.join(folder_paths.models_dir, "sams")
 sam_model_list = {
@@ -69,7 +71,9 @@ def list_sam_model():
     return list(sam_model_list.keys())
 
 
-def load_sam_model(model_name):
+def load_sam_model(model_name , use_cpu=False):
+    device = comfy.model_management.get_torch_device() if use_cpu == False else torch.device("cpu")
+    print(f"\033[1;32mload_sam_model using:\033[0m {device}")
     sam_checkpoint_path = get_local_filepath(
         sam_model_list[model_name]["model_url"], sam_model_dir)
     model_file_name = os.path.basename(sam_checkpoint_path)
@@ -77,8 +81,7 @@ def load_sam_model(model_name):
     if 'hq' not in model_type and 'mobile' not in model_type:
         model_type = '_'.join(model_type.split('_')[:-1])
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint_path)
-    sam_device = comfy.model_management.get_torch_device()
-    sam.to(device=sam_device)
+    sam.to(device=device)
     sam.eval()
     sam.model_name = model_file_name
     return sam
@@ -97,7 +100,9 @@ def get_local_filepath(url, dirname, local_file_name=None):
     return destination
 
 
-def load_groundingdino_model(model_name):
+def load_groundingdino_model(model_name, use_cpu=False):
+    device = comfy.model_management.get_torch_device() if use_cpu == False else torch.device("cpu")
+    print(f"\033[1;32mload_groundingdino_model using:\033[0m {device}")
     dino_model_args = local_groundingdino_SLConfig.fromfile(
         get_local_filepath(
             groundingdino_model_list[model_name]["config_url"],
@@ -114,7 +119,6 @@ def load_groundingdino_model(model_name):
     )
     dino.load_state_dict(local_groundingdino_clean_state_dict(
         checkpoint['model']), strict=False)
-    device = comfy.model_management.get_torch_device()
     dino.to(device=device)
     dino.eval()
     return dino
@@ -128,8 +132,11 @@ def groundingdino_predict(
     dino_model,
     image,
     prompt,
-    threshold
+    box_threshold,
+    use_cpu
 ):
+    device = comfy.model_management.get_torch_device() if use_cpu == False else torch.device("cpu")
+    print(f"\033[1;32mgroundingdino_predict using:\033[0m {device}")
     def load_dino_image(image_pil):
         transform = T.Compose(
             [
@@ -141,12 +148,12 @@ def groundingdino_predict(
         image, _ = transform(image_pil, None)  # 3, h, w
         return image
 
-    def get_grounding_output(model, image, caption, box_threshold):
+    def get_grounding_output(model, image, caption, box_threshold, device):
+        print(f"\033[1;32mget_grounding_output using:\033[0m {device}")
         caption = caption.lower()
         caption = caption.strip()
         if not caption.endswith("."):
             caption = caption + "."
-        device = comfy.model_management.get_torch_device()
         image = image.to(device)
         with torch.no_grad():
             outputs = model(image[None], captions=[caption])
@@ -158,18 +165,18 @@ def groundingdino_predict(
         filt_mask = logits_filt.max(dim=1)[0] > box_threshold
         logits_filt = logits_filt[filt_mask]  # num_filt, 256
         boxes_filt = boxes_filt[filt_mask]  # num_filt, 4
-        return boxes_filt.cpu()
+        return boxes_filt.to(device)
 
     dino_image = load_dino_image(image.convert("RGB"))
     boxes_filt = get_grounding_output(
-        dino_model, dino_image, prompt, threshold
+        dino_model, dino_image, prompt, box_threshold, device
     )
     H, W = image.size[1], image.size[0]
     for i in range(boxes_filt.size(0)):
-        boxes_filt[i] = boxes_filt[i] * torch.Tensor([W, H, W, H])
+        boxes_filt[i] = boxes_filt[i] * torch.Tensor([W, H, W, H]).to(device)
         boxes_filt[i][:2] -= boxes_filt[i][2:] / 2
         boxes_filt[i][2:] += boxes_filt[i][:2]
-    return boxes_filt
+    return boxes_filt.to(device)
 
 
 def create_pil_output(image_np, masks, boxes_filt):
@@ -183,20 +190,20 @@ def create_pil_output(image_np, masks, boxes_filt):
     return output_images, output_masks
 
 
-def create_tensor_output(image_np, masks, boxes_filt):
+def create_tensor_output(image_np, masks, boxes_filt, device):
     output_masks, output_images = [], []
-    boxes_filt = boxes_filt.numpy().astype(int) if boxes_filt is not None else None
+    boxes_filt = boxes_filt.cpu().numpy().astype(int) if boxes_filt is not None else None
     for mask in masks:
         image_np_copy = copy.deepcopy(image_np)
         image_np_copy[~np.any(mask, axis=0)] = np.array([0, 0, 0, 0])
         output_image, output_mask = split_image_mask(
-            Image.fromarray(image_np_copy))
+            Image.fromarray(image_np_copy), device)
         output_masks.append(output_mask)
         output_images.append(output_image)
     return (output_images, output_masks)
 
 
-def split_image_mask(image):
+def split_image_mask(image, device):
     image_rgb = image.convert("RGB")
     image_rgb = np.array(image_rgb).astype(np.float32) / 255.0
     image_rgb = torch.from_numpy(image_rgb)[None,]
@@ -204,15 +211,19 @@ def split_image_mask(image):
         mask = np.array(image.getchannel('A')).astype(np.float32) / 255.0
         mask = torch.from_numpy(mask)[None,]
     else:
-        mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
+        mask = torch.zeros((64, 64), dtype=torch.float32, device=device)
     return (image_rgb, mask)
 
 
 def sam_segment(
     sam_model,
     image,
-    boxes
-):
+    boxes,
+    multimask,
+    use_cpu
+):  
+    device = comfy.model_management.get_torch_device() if use_cpu == False else torch.device("cpu")
+    print(f"\033[1;32msam_segment using:\033[0m {device}")
     if boxes.shape[0] == 0:
         return None
     sam_is_hq = False
@@ -225,14 +236,36 @@ def sam_segment(
     predictor.set_image(image_np_rgb)
     transformed_boxes = predictor.transform.apply_boxes_torch(
         boxes, image_np.shape[:2])
-    sam_device = comfy.model_management.get_torch_device()
     masks, _, _ = predictor.predict_torch(
         point_coords=None,
         point_labels=None,
-        boxes=transformed_boxes.to(sam_device),
+        boxes=transformed_boxes.to(device),
         multimask_output=False)
-    masks = masks.permute(1, 0, 2, 3).cpu().numpy()
-    return create_tensor_output(image_np, masks, boxes)
+    
+    if multimask is not False:
+        print(f"\033[1;32msam_segment using multimask:\033[0m {multimask}")
+
+        output_images, output_masks = [], []
+        for batch_index in range(masks.size(0)):
+            mask_np =  masks[batch_index].permute( 1, 2, 0).cpu().numpy()# H.W.C
+            image_with_alpha = Image.fromarray(np.concatenate((image_np_rgb, mask_np * 255), axis=2).astype(np.uint8), 'RGBA')
+            _, msk = split_image_mask(image_with_alpha, device)
+            r, g, b, a = image_with_alpha.split()
+
+            black_image = Image.new("RGB", image.size, (0, 0, 0))
+            black_image.paste(image_with_alpha, mask=image_with_alpha.split()[3])
+
+            rgb_ts = to_tensor(black_image)
+            rgb_ts = rgb_ts.unsqueeze(0)
+            rgb_ts = rgb_ts.permute(0, 2, 3, 1)
+
+            output_images.append(rgb_ts)
+            output_masks.append(msk)
+                        
+        return (output_images, output_masks)
+    else:
+        masks = masks.permute(1, 0, 2, 3).cpu().numpy()
+        return create_tensor_output(image_np, masks, boxes, device)
 
 
 class SAMModelLoader:
@@ -241,14 +274,17 @@ class SAMModelLoader:
         return {
             "required": {
                 "model_name": (list_sam_model(), ),
+            },
+            "optional":{
+                "use_cpu":{"USE_CPU":{"default":False}}
             }
         }
     CATEGORY = "segment_anything"
     FUNCTION = "main"
     RETURN_TYPES = ("SAM_MODEL", )
 
-    def main(self, model_name):
-        sam_model = load_sam_model(model_name)
+    def main(self, model_name, use_cpu=False):
+        sam_model = load_sam_model(model_name, use_cpu)
         return (sam_model, )
 
 
@@ -258,14 +294,17 @@ class GroundingDinoModelLoader:
         return {
             "required": {
                 "model_name": (list_groundingdino_model(), ),
+            },
+            "optional":{
+                "use_cpu":{"USE_CPU":{"default":False}}
             }
         }
     CATEGORY = "segment_anything"
     FUNCTION = "main"
     RETURN_TYPES = ("GROUNDING_DINO_MODEL", )
 
-    def main(self, model_name):
-        dino_model = load_groundingdino_model(model_name)
+    def main(self, model_name, use_cpu=False):
+        dino_model = load_groundingdino_model(model_name,use_cpu)
         return (dino_model, )
 
 
@@ -277,20 +316,24 @@ class GroundingDinoSAMSegment:
                 "sam_model": ('SAM_MODEL', {}),
                 "grounding_dino_model": ('GROUNDING_DINO_MODEL', {}),
                 "image": ('IMAGE', {}),
-                "prompt": ("STRING", {}),
-                "threshold": ("FLOAT", {
+                "prompt": ("STRING", {"default": "arms, legs, eyes, hair, head","multiline": True}),
+                "box_threshold": ("FLOAT", {
                     "default": 0.3,
                     "min": 0,
                     "max": 1.0,
                     "step": 0.01
                 }),
+                "multimask": ('BOOLEAN', {"default":False}),
+            },
+            "optional":{
+                "use_cpu":{"USE_CPU":{"default":False}}
             }
         }
     CATEGORY = "segment_anything"
     FUNCTION = "main"
     RETURN_TYPES = ("IMAGE", "MASK")
 
-    def main(self, grounding_dino_model, sam_model, image, prompt, threshold):
+    def main(self, grounding_dino_model, sam_model, image, prompt, box_threshold,multimask=False, use_cpu=False):
         res_images = []
         res_masks = []
         for item in image:
@@ -300,35 +343,65 @@ class GroundingDinoSAMSegment:
                 grounding_dino_model,
                 item,
                 prompt,
-                threshold
+                box_threshold,
+                use_cpu
             )
             (images, masks) = sam_segment(
                 sam_model,
                 item,
-                boxes
+                boxes,
+                multimask,
+                use_cpu
             )
             res_images.extend(images)
             res_masks.extend(masks)
-        return (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
+        res_images = torch.cat(res_images, dim=0)
+        res_masks = torch.cat(res_masks, dim=0)
+        return (res_images, res_masks, )
 
-
-class InvertMask:
+class DeviceSelector:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "mask": ("MASK",),
+                "use_cpu": ('BOOLEAN', {"default":False}),
             }
         }
     CATEGORY = "segment_anything"
     FUNCTION = "main"
-    RETURN_TYPES = ("MASK",)
+    RETURN_TYPES = ("USE_CPU",)
 
-    def main(self, mask):
-        out = 1.0 - mask
-        return (out,)
+    def main(self, use_cpu):
+        return (use_cpu,)
 
+class BatchSelector:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ('IMAGE', {}),
+                "mask": ('MASK', {}),
+                "batch_select": ("FLOAT", {
+                    "default": 1,
+                    "min": 1,
+                    "max": 1000000,
+                    "step": 1
+                }),
+            }
+        }
+    CATEGORY = "segment_anything"
+    FUNCTION = "main"
+    RETURN_TYPES = ("IMAGE","MASK",)
 
+    def main(self, image, mask, batch_select):
+        selector = round(batch_select-1)
+        selected_image = image[selector]
+        selected_image = selected_image.unsqueeze(0)
+        selected_mask = mask[selector]
+        return (selected_image, selected_mask, )
+    
+
+"""
 if __name__ == "__main__":
     input_image = Image.open(
         '/data/dev/comfyui-latest/custom_nodes/comfyui_segment_anything/human.jpg').convert('RGBA')
@@ -347,3 +420,4 @@ if __name__ == "__main__":
     )
     for i in range(len(output_images)):
         output_images[i].save(f"result_{i}.png")
+"""
