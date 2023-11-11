@@ -13,6 +13,13 @@ Please ensure that you have installed Python dependencies using the following co
 ```
 pip3 install -r requirements.txt
 ```
+**Standalone Version:**
+
+Start your terminal in the main ComfyUI folder (e.g., ComfyUI_windows_portable_cu121) and try
+```
+python_embeded\python.exe -m pip install -r ".\ComfyUI\custom_nodes\comfyui_segment_anything\requirements.txt"
+```
+
 
 ## Models
 
@@ -47,3 +54,15 @@ Please directly download the model files to the `models/sams` directory under th
 Thank you for considering to help out with the source code! Welcome contributions from anyone on the internet, and are grateful for even the smallest of fixes!
 
 If you'd like to contribute to this project, please fork, fix, commit and send a pull request for me to review and merge into the main code base.
+
+
+## Prompt
+
+Try concatenating your prompt with different elements you want to mask, for example:
+```
+arms, legs, eyes
+```
+or even better
+```
+arms . legs . eyes 
+```
