@@ -73,7 +73,7 @@ def list_sam_model():
 
 def load_sam_model(model_name ):
     device = comfy.model_management.get_torch_device()
-    print(f"\033[1;32m(segment-anything) load_sam_model using:\033[0m {device}")
+    #print(f"\033[1;32m(segment-anything) load_sam_model using:\033[0m {device}")
     sam_checkpoint_path = get_local_filepath(
         sam_model_list[model_name]["model_url"], sam_model_dir)
     model_file_name = os.path.basename(sam_checkpoint_path)
@@ -81,8 +81,8 @@ def load_sam_model(model_name ):
     if 'hq' not in model_type and 'mobile' not in model_type:
         model_type = '_'.join(model_type.split('_')[:-1])
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint_path)
-    sam.to(device=device)
-    sam.eval()
+    #sam.to(device=device)
+    #sam.eval()
     sam.model_name = model_file_name
     return sam
 
@@ -102,7 +102,7 @@ def get_local_filepath(url, dirname, local_file_name=None):
 
 def load_groundingdino_model(model_name, use_cpu=False):
     device = comfy.model_management.get_torch_device()
-    print(f"\033[1;32m(segment-anything) load_groundingdino_model using:\033[0m {device}")
+    #print(f"\033[1;32m(segment-anything) load_groundingdino_model using:\033[0m {device}")
     dino_model_args = local_groundingdino_SLConfig.fromfile(
         get_local_filepath(
             groundingdino_model_list[model_name]["config_url"],
@@ -119,8 +119,8 @@ def load_groundingdino_model(model_name, use_cpu=False):
     )
     dino.load_state_dict(local_groundingdino_clean_state_dict(
         checkpoint['model']), strict=False)
-    dino.to(device=device)
-    dino.eval()
+    #dino.to(device=device)
+    #dino.eval()
     return dino
 
 
@@ -133,8 +133,8 @@ def groundingdino_predict(
     image,
     prompt,
     box_threshold,
+    device
 ):
-    device = comfy.model_management.get_torch_device()
     print(f"\033[1;32m(segment-anything) groundingdino_predict using:\033[0m {device}")
     def load_dino_image(image_pil):
         transform = T.Compose(
@@ -189,21 +189,21 @@ def create_pil_output(image_np, masks, boxes_filt):
     return output_images, output_masks
 
 
-def create_tensor_output(image_np, masks, boxes_filt):
-    device = comfy.model_management.get_torch_device()
+def create_tensor_output(image_np, masks, boxes_filt,device):
+    #device = comfy.model_management.get_torch_device()
     output_masks, output_images = [], []
     boxes_filt = boxes_filt.cpu().numpy().astype(int) if boxes_filt is not None else None
     for mask in masks:
         image_np_copy = copy.deepcopy(image_np)
         image_np_copy[~np.any(mask, axis=0)] = np.array([0, 0, 0, 0])
-        output_image, output_mask = split_image_mask(Image.fromarray(image_np_copy))
+        output_image, output_mask = split_image_mask(Image.fromarray(image_np_copy),device)
         output_masks.append(output_mask)
         output_images.append(output_image)
     return (output_images, output_masks)
 
 
-def split_image_mask(image):
-    device = comfy.model_management.get_torch_device()
+def split_image_mask(image, device):
+    #device = comfy.model_management.get_torch_device()
     image_rgb = image.convert("RGB")
     image_rgb = np.array(image_rgb).astype(np.float32) / 255.0
     image_rgb = torch.from_numpy(image_rgb)[None,]
@@ -220,8 +220,9 @@ def sam_segment(
     image,
     boxes,
     multimask,
+    device
 ):  
-    device = comfy.model_management.get_torch_device()
+    #device = comfy.model_management.get_torch_device()
     print(f"\033[1;32m(segment-anything) sam_segment using:\033[0m {device}")
     if boxes.shape[0] == 0:
         return None
@@ -248,7 +249,7 @@ def sam_segment(
         for batch_index in range(masks.size(0)):
             mask_np =  masks[batch_index].permute( 1, 2, 0).cpu().numpy()# H.W.C
             image_with_alpha = Image.fromarray(np.concatenate((image_np_rgb, mask_np * 255), axis=2).astype(np.uint8), 'RGBA')
-            _, msk = split_image_mask(image_with_alpha)
+            _, msk = split_image_mask(image_with_alpha,device)
             r, g, b, a = image_with_alpha.split()
 
             black_image = Image.new("RGB", image.size, (0, 0, 0))
@@ -264,7 +265,7 @@ def sam_segment(
         return (output_images, output_masks)
     else:
         masks = masks.permute(1, 0, 2, 3).cpu().numpy()
-        return create_tensor_output(image_np, masks, boxes)
+        return create_tensor_output(image_np, masks, boxes, device)
 
 
 class SAMModelLoader:
@@ -317,13 +318,29 @@ class GroundingDinoSAMSegment:
                     "step": 0.01
                 }),
                 "multimask": ('BOOLEAN', {"default":False}),
+                "dedicated_device": (["Auto", "CPU", "GPU"], ),
             },
         }
     CATEGORY = "segment_anything"
     FUNCTION = "main"
     RETURN_TYPES = ("IMAGE", "MASK")
 
-    def main(self, grounding_dino_model, sam_model, image, prompt, box_threshold,multimask=False):
+    def main(self, grounding_dino_model, sam_model, image, prompt, box_threshold,multimask=False, dedicated_device="Auto"):
+        #
+        device_mapping = {
+            "Auto": comfy.model_management.get_torch_device(),
+            "CPU": torch.device("cpu"),
+            "GPU": torch.device("cuda")
+        }
+        device = device_mapping.get(dedicated_device)
+        #
+        print(f"\033[1;32m(segment-anything) grounding_dino_model moving to:\033[0m {device}")
+        grounding_dino_model.to(device)
+        grounding_dino_model.eval()
+        print(f"\033[1;32m(segment-anything) sam_model moving to:\033[0m {device}")
+        sam_model.to(device)
+        sam_model.eval()
+        #
         res_images = []
         res_masks = []
         for item in image:
@@ -334,12 +351,14 @@ class GroundingDinoSAMSegment:
                 item,
                 prompt,
                 box_threshold,
+                device
             )
             (images, masks) = sam_segment(
                 sam_model,
                 item,
                 boxes,
                 multimask,
+                device
             )
             res_images.extend(images)
             res_masks.extend(masks)
