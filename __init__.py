@@ -5,7 +5,6 @@ NODE_CLASS_MAPPINGS = {
     'GroundingDinoModelLoader (segment anything)': GroundingDinoModelLoader,
     'GroundingDinoSAMSegment (segment anything)': GroundingDinoSAMSegment,
     'BatchSelector (segment anything)': BatchSelector,
-    'DeviceSelector (segment anything)': DeviceSelector
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS']
