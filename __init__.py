@@ -10,6 +10,7 @@ NODE_CLASS_MAPPINGS = {
     'SAMModelLoader (segment anything)': SAMModelLoader,
     'GroundingDinoModelLoader (segment anything)': GroundingDinoModelLoader,
     'GroundingDinoSAMSegment (segment anything)': GroundingDinoSAMSegment,
+    'SAM Auto Segmentation (segment anything)': SAMAutoSegment,
     'BatchSelector (segment anything)': BatchSelector,
 }
 
