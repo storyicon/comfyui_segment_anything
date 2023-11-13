@@ -1,9 +1,4 @@
 import os
-import sys
-sys.path.append(
-    os.path.dirname(os.path.abspath(__file__))
-)
-
 import copy
 import torch
 from torchvision.transforms import ToTensor
@@ -14,12 +9,12 @@ from torch.hub import download_url_to_file
 from urllib.parse import urlparse
 import folder_paths
 import comfy.model_management
-from sam_hq.predictor import SamPredictorHQ
-from sam_hq.build_sam_hq import sam_model_registry
-from local_groundingdino.datasets import transforms as T
-from local_groundingdino.util.utils import clean_state_dict as local_groundingdino_clean_state_dict
-from local_groundingdino.util.slconfig import SLConfig as local_groundingdino_SLConfig
-from local_groundingdino.models import build_model as local_groundingdino_build_model
+from .sam_hq.predictor import SamPredictorHQ
+from .sam_hq.build_sam_hq import sam_model_registry
+from .local_groundingdino.datasets import transforms as T
+from .local_groundingdino.util.utils import clean_state_dict as local_groundingdino_clean_state_dict
+from .local_groundingdino.util.slconfig import SLConfig as local_groundingdino_SLConfig
+from .local_groundingdino.models import build_model as local_groundingdino_build_model
 
 logger = logging.getLogger('comfyui_segment_anything')
 to_tensor = ToTensor()
@@ -72,8 +67,6 @@ def list_sam_model():
 
 
 def load_sam_model(model_name ):
-    device = comfy.model_management.get_torch_device()
-    #print(f"\033[1;32m(segment-anything) load_sam_model using:\033[0m {device}")
     sam_checkpoint_path = get_local_filepath(
         sam_model_list[model_name]["model_url"], sam_model_dir)
     model_file_name = os.path.basename(sam_checkpoint_path)
@@ -81,8 +74,6 @@ def load_sam_model(model_name ):
     if 'hq' not in model_type and 'mobile' not in model_type:
         model_type = '_'.join(model_type.split('_')[:-1])
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint_path)
-    #sam.to(device=device)
-    #sam.eval()
     sam.model_name = model_file_name
     return sam
 
@@ -101,8 +92,6 @@ def get_local_filepath(url, dirname, local_file_name=None):
 
 
 def load_groundingdino_model(model_name, use_cpu=False):
-    device = comfy.model_management.get_torch_device()
-    #print(f"\033[1;32m(segment-anything) load_groundingdino_model using:\033[0m {device}")
     dino_model_args = local_groundingdino_SLConfig.fromfile(
         get_local_filepath(
             groundingdino_model_list[model_name]["config_url"],
@@ -119,8 +108,6 @@ def load_groundingdino_model(model_name, use_cpu=False):
     )
     dino.load_state_dict(local_groundingdino_clean_state_dict(
         checkpoint['model']), strict=False)
-    #dino.to(device=device)
-    #dino.eval()
     return dino
 
 
@@ -341,11 +328,18 @@ class GroundingDinoSAMSegment:
         sam_model.to(device)
         sam_model.eval()
         #
+        # in case sam or dino dont find anything, return blank mask and original image
+        img_batch, img_height, img_width, img_channel = image.shape        # get original image dimensions 
+        empty_mask = torch.zeros((1, 1, img_height, img_width), dtype=torch.float32) # [B,C,H,W]
+        empty_mask = empty_mask / 255.0
+        #
         res_images = []
         res_masks = []
+        #
+        detection_errors = False
+        #
         for item in image:
-            item = Image.fromarray(
-                np.clip(255. * item.cpu().numpy(), 0, 255).astype(np.uint8)).convert('RGBA')
+            item = Image.fromarray(np.clip(255. * item.cpu().numpy(), 0, 255).astype(np.uint8)).convert('RGBA')
             boxes = groundingdino_predict(
                 grounding_dino_model,
                 item,
@@ -353,6 +347,11 @@ class GroundingDinoSAMSegment:
                 box_threshold,
                 device
             )
+
+            if boxes.numel() == 0:
+                detection_errors = True
+                break
+
             (images, masks) = sam_segment(
                 sam_model,
                 item,
@@ -362,6 +361,12 @@ class GroundingDinoSAMSegment:
             )
             res_images.extend(images)
             res_masks.extend(masks)
+        
+        if detection_errors is not False:
+            print("\033[1;32m(segment-anything)\033[0m The tensor 'boxes' is empty. No elements were found in the image search.")
+            res_images.append(image)
+            res_masks.append(empty_mask)
+
         res_images = torch.cat(res_images, dim=0)
         res_masks = torch.cat(res_masks, dim=0)
         return (res_images, res_masks, )

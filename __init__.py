@@ -1,3 +1,9 @@
+import os
+import sys
+import folder_paths
+sys.path.append(
+    os.path.dirname(os.path.abspath(__file__))
+)
 from .node import *
 
 NODE_CLASS_MAPPINGS = {

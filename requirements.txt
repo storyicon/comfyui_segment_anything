@@ -1,1 +1,4 @@
 segment-anything~=1.0
+timm~=0.9.7
+addict~=2.4.0
+yapf~=0.40.2
