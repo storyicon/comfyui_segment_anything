@@ -3,8 +3,7 @@ import numpy as np
 from PIL import Image
 import folder_paths
 import comfy.model_management
-from .node_funtions import *
-
+from .node_functions import *
 
 
 class SAMModelLoader:
