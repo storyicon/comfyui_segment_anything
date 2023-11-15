@@ -58,6 +58,7 @@ groundingdino_model_list = {
 }
 
 
+
 def list_files(dirpath, extensions=[]):
     return [f for f in os.listdir(dirpath) if os.path.isfile(os.path.join(dirpath, f)) and f.split('.')[-1] in extensions]
 
@@ -283,10 +284,9 @@ def sam_segment(
         return create_tensor_output(image_np, masks, boxes, device)
 
 
-
+"""
 def sam_auto_segmentationHQ(sam_model, image, points_per_side, min_mask_region_area, device):
 
-    """
     SamAutomaticMaskGeneratorHQ possible options:
 
     model (Sam): The SAM model to use for mask prediction.
@@ -303,15 +303,12 @@ def sam_auto_segmentationHQ(sam_model, image, points_per_side, min_mask_region_a
     point_grids (list(np.ndarray) or None): A list over explicit grids  of points used for sampling, normalized to [0,1]. The nth grid in the  list is used in the nth crop layer. Exclusive with points_per_side.
     min_mask_region_area (int): If >0, postprocessing will be applied to remove disconnected regions and holes in masks with area smaller than min_mask_region_area. Requires opencv.
     output_mode (str): The form masks are returned in. Can be 'binary_mask', 'uncompressed_rle', or 'coco_rle'. 'coco_rle' requires pycocotools. For large resolutions, 'binary_mask' may consume large amounts of memory.
-    """
+
 
     image_rgb = image.convert("RGB") # to RGB in any case 4 dimension are not supported
     image_np = np.array(image_rgb) # image (np.ndarray): The image to generate masks for, in HWC uint8 format.
 
-    sam_is_hq = False
-    # TODO: more elegant
-    if hasattr(sam_model, 'model_name') and 'hq' in sam_model.model_name:
-        sam_is_hq = True
+    sam_is_hq = hasattr(sam_model, 'model_name') and 'hq' in getattr(sam_model, 'model_name', '').lower()
 
     # use other proccess for HQ
     if sam_is_hq is True:
@@ -326,14 +323,14 @@ def sam_auto_segmentationHQ(sam_model, image, points_per_side, min_mask_region_a
     for binary_mask in binary_masks_list:
 
         # possible binary_masks_list responses: 
-        """
+
         area = binary_mask['area']
         bbox = binary_mask['bbox']
         predicted_iou = binary_mask['predicted_iou']
         point_coords = binary_mask['point_coords']
         stability_score = binary_mask['stability_score']
         crop_box = binary_mask['crop_box']
-        """
+
         #
         segmentation = binary_mask['segmentation']
         # Mask
@@ -343,20 +340,17 @@ def sam_auto_segmentationHQ(sam_model, image, points_per_side, min_mask_region_a
         response_masks.append(binary_mask_tensor)
         # Images
         image_rgb_copy = image_rgb.copy()
-
+        #
         background = Image.new("RGBA", image_rgb_copy.size, (0, 0, 0, 255))
         binary_mask_pil = Image.fromarray(binary_mask_uint8) # to PIL 
         image_rgb_copy.putalpha(binary_mask_pil) # apply Mask
         background.paste(image_rgb_copy, (0, 0), binary_mask_pil)
         image_rgb_copy = background
         #
-        compose_tensor = transforms.Compose([
-            transforms.ToTensor(),  # convert to tensor
-            #transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # Optional: Normalisierung
-        ])
-        #
-        rgb_tensor = compose_tensor(image_rgb_copy).unsqueeze(0)  # add batch_size 1
+        rgb_tensor = to_tensor(image_rgb_copy).unsqueeze(0)  # add batch_size 1
         rgb_tensor = rgb_tensor.permute(0, 2, 3, 1) # [B,C,H,W] to [B,H,W,C]
         response_images.append(rgb_tensor)
 
     return response_images, response_masks
+
+"""

@@ -5,7 +5,7 @@ import folder_paths
 import comfy.model_management
 from .node_functions import *
 
-
+"""
 class SAMModelLoader:
     @classmethod
     def INPUT_TYPES(cls):
@@ -21,7 +21,7 @@ class SAMModelLoader:
     def main(self, model_name, use_cpu=False):
         sam_model = load_sam_model(model_name)
         return (sam_model, )
-
+"""
 
 class GroundingDinoModelLoader:
     @classmethod
@@ -39,7 +39,7 @@ class GroundingDinoModelLoader:
         dino_model = load_groundingdino_model(model_name)
         return (dino_model, )
 
-
+"""
 class GroundingDinoSAMSegment:
     @classmethod
     def INPUT_TYPES(cls):
@@ -129,7 +129,9 @@ class GroundingDinoSAMSegment:
         res_masks = torch.cat(res_masks, dim=0)
         return (res_images, res_masks, )
 
+        """
 
+"""
 
 
 class SAMAutoSegment:
@@ -225,3 +227,5 @@ class BatchSelector:
         selected_image = selected_image.unsqueeze(0)
         selected_mask = mask[selector]
         return (selected_image, selected_mask, )
+
+"""
