@@ -302,6 +302,8 @@ class GroundingDinoSAMSegment:
                 prompt,
                 threshold
             )
+            if boxes.shape[0] == 0:
+                break
             (images, masks) = sam_segment(
                 sam_model,
                 item,
@@ -309,6 +311,10 @@ class GroundingDinoSAMSegment:
             )
             res_images.extend(images)
             res_masks.extend(masks)
+        if len(res_images) == 0:
+            _, height, width, _ = image.size()
+            empty_mask = torch.zeros((1, height, width), dtype=torch.uint8, device="cpu")
+            return (empty_mask, empty_mask)
         return (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
 
 
