@@ -231,7 +231,7 @@ def sam_segment(
         point_labels=None,
         boxes=transformed_boxes.to(sam_device),
         multimask_output=False)
-    masks = masks.cpu().numpy()
+    masks = masks.permute(1, 0, 2, 3).cpu().numpy()
     return create_tensor_output(image_np, masks, boxes)
 
 
