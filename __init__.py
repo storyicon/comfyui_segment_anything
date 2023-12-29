@@ -1,4 +1,5 @@
 from .node import *
+from .install import *
 
 NODE_CLASS_MAPPINGS = {
     'SAMModelLoader (segment anything)': SAMModelLoader,
@@ -8,3 +9,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS']
+
+

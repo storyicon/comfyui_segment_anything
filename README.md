@@ -18,6 +18,23 @@ pip3 install -r requirements.txt
 
 The models will be automatically downloaded when used. You can also manually download them according to the table below. If the automatic download is slow, you can set the `HTTP_PROXY` and `HTTPS_PROXY` environment variables to use a proxy.
 
+### bert-base-uncased
+
+You can download the model from https://huggingface.co/bert-base-uncased/tree/main into the `models/bert-base-uncased` folder located in the root directory of ComfyUI, like this:
+
+```
+ComfyUI
+    models
+        bert-base-uncased
+            config.json
+            model.safetensors
+            tokenizer_config.json
+            tokenizer.json
+            vocab.txt
+```
+
+You can also skip this step. During the inference process, `bert-base-uncased` will be automatically downloaded through the `transformers` library, and its directory is typically `~/.cache/huggingface/hub/models--bert-base-uncased`.
+
 ### GroundingDino
 
 Please directly download the models and configuration files to the `models/grounding-dino` directory under the ComfyUI root directory, without modifying the file names.

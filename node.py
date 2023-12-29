@@ -19,6 +19,8 @@ from local_groundingdino.datasets import transforms as T
 from local_groundingdino.util.utils import clean_state_dict as local_groundingdino_clean_state_dict
 from local_groundingdino.util.slconfig import SLConfig as local_groundingdino_SLConfig
 from local_groundingdino.models import build_model as local_groundingdino_build_model
+import glob
+import folder_paths
 
 logger = logging.getLogger('comfyui_segment_anything')
 
@@ -59,6 +61,12 @@ groundingdino_model_list = {
     },
 }
 
+def get_bert_base_uncased_model_path():
+    comfy_bert_model_base = os.path.join(folder_paths.models_dir, 'bert-base-uncased')
+    if glob.glob(os.path.join(comfy_bert_model_base, '**/model.safetensors'), recursive=True):
+        print('grounding-dino is using models/bert-base-uncased')
+        return comfy_bert_model_base
+    return 'bert-base-uncased'
 
 def list_files(dirpath, extensions=[]):
     return [f for f in os.listdir(dirpath) if os.path.isfile(os.path.join(dirpath, f)) and f.split('.')[-1] in extensions]
@@ -110,8 +118,11 @@ def load_groundingdino_model(model_name):
             groundingdino_model_list[model_name]["config_url"],
             groundingdino_model_dir_name
         ),
-
     )
+
+    if dino_model_args.text_encoder_type == 'bert-base-uncased':
+        dino_model_args.text_encoder_type = get_bert_base_uncased_model_path()
+    
     dino = local_groundingdino_build_model(dino_model_args)
     checkpoint = torch.load(
         get_local_filepath(
@@ -341,22 +352,3 @@ class InvertMask:
         out = 1.0 - mask
         return (out,)
 
-
-if __name__ == "__main__":
-    input_image = Image.open(
-        '/data/dev/comfyui-latest/custom_nodes/comfyui_segment_anything/human.jpg').convert('RGBA')
-    dino_model = load_groundingdino_model('GroundingDINO_SwinT_OGC (694MB)')
-    boxes = groundingdino_predict(
-        dino_model,
-        input_image,
-        'face . glasses . forehead',
-        0.3
-    )
-    sam_model = load_sam_model('sam_hq_vit_h (2.57GB)')
-    (output_images, output_masks) = sam_segment(
-        sam_model,
-        input_image,
-        boxes
-    )
-    for i in range(len(output_images)):
-        output_images[i].save(f"result_{i}.png")
