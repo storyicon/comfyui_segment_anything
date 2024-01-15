@@ -1,7 +1,7 @@
 import sys
 import os.path
 import subprocess
-import os.environ
+import os
 custom_nodes_path = os.path.dirname(os.path.abspath(__file__))
 
 def build_pip_install_cmds(args):
