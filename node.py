@@ -352,3 +352,19 @@ class InvertMask:
         out = 1.0 - mask
         return (out,)
 
+class IsMaskEmptyNode:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "mask": ("MASK",),
+            },
+        }
+    RETURN_TYPES = ["NUMBER"]
+    RETURN_NAMES = ["boolean_number"]
+
+    FUNCTION = "main"
+    CATEGORY = "segment_anything"
+
+    def main(self, mask):
+        return (torch.all(mask == 0).int().item(), )
