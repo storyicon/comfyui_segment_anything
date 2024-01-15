@@ -2,3 +2,8 @@ segment_anything
 timm
 addict
 yapf
+matte_anything @ git+https://github.com/hustvl/Matte-Anything@50665b9
+
+
+
+ 
