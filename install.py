@@ -11,7 +11,7 @@ def build_pip_install_cmds(args):
         return [sys.executable, '-m', 'pip', 'install'] + args
 
 def ensure_package():
-    if os.environ('COMFY_SAM_ENSURE_PACKAGES',None):
+    if os.environ.get('COMFY_SAM_ENSURE_PACKAGES',None):
         cmds = build_pip_install_cmds(['-r', 'requirements.txt'])
         subprocess.run(cmds, cwd=custom_nodes_path)
 
