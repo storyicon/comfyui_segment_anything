@@ -374,7 +374,7 @@ class IsMaskEmptyNode:
     def main(self, mask):
         return (torch.all(mask == 0).int().item(), )
     
-def tensor2pil(image: torch.Tensor) -> PIL.Image.Image:
+def tensor2pil(image: torch.Tensor) -> Image.Image:
     return Image.fromarray(np.clip(255. * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
 
 def pil2tensor(image: Image.Image) -> torch.Tensor:
