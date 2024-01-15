@@ -466,7 +466,7 @@ class MaskToTrimap:
         trimap[trimap==255] = 1
         trimap = torch.from_numpy(trimap).unsqueeze(0)
       
-        return (trimap)
+        return (trimap,)
     
     def generate_trimap(self,mask, erode_kernel_size=10, dilate_kernel_size=10):
         erode_kernel = np.ones((erode_kernel_size, erode_kernel_size), np.uint8)
