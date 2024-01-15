@@ -488,7 +488,7 @@ class TrimapToMask:
             }
         }
 
-    RETURN_TYPES = ("MASK")
+    RETURN_TYPES = ("MASK",)
     FUNCTION = "to_mask"
 
     CATEGORY = "segment_anything"
