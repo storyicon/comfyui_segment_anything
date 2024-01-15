@@ -6,6 +6,11 @@ NODE_CLASS_MAPPINGS = {
     'GroundingDinoModelLoader (segment anything)': GroundingDinoModelLoader,
     'GroundingDinoSAMSegment (segment anything)': GroundingDinoSAMSegment,
     'InvertMask (segment anything)': InvertMask,
+    'GenerateVITMatte (segment anything)': GenerateVITMatte,
+    'VITMatteTransformersModelLoader (segment anything)': VITMatteTransformersModelLoader,
+    'MaskToTrimap (segment anything)': MaskToTrimap,
+    'TrimapToMask (segment anything)': TrimapToMask,
+    'InvertMask (segment anything)': InvertMask,
     "IsMaskEmpty": IsMaskEmptyNode,
 }
 

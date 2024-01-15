@@ -1,5 +1,9 @@
 import os
 import sys
+
+import cv2
+
+
 sys.path.append(
     os.path.dirname(os.path.abspath(__file__))
 )
@@ -21,6 +25,7 @@ from local_groundingdino.util.slconfig import SLConfig as local_groundingdino_SL
 from local_groundingdino.models import build_model as local_groundingdino_build_model
 import glob
 import folder_paths
+from transformers import VitMatteImageProcessor, VitMatteForImageMatting
 
 logger = logging.getLogger('comfyui_segment_anything')
 
@@ -368,3 +373,127 @@ class IsMaskEmptyNode:
 
     def main(self, mask):
         return (torch.all(mask == 0).int().item(), )
+    
+def tensor2pil(image: torch.Tensor) -> PIL.Image.Image:
+    return Image.fromarray(np.clip(255. * image.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
+
+def pil2tensor(image: Image.Image) -> torch.Tensor:
+    return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
+
+
+class VITMatteModel:
+    def __init__(self,model,processor):
+        self.model = model
+        self.processor = processor
+        
+
+class VITMatteTransformersModelLoader:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model_name": ("STRING",{"default":"hustvl/vitmatte-small-composition-1k"}),
+                
+            }
+        }
+
+    RETURN_TYPES = ("VIT_MATTE_MODEL",)
+    FUNCTION = "load_model"
+
+    CATEGORY = "segment_anything"
+
+    def load_model(self, model_name):
+        vitmatte = VITMatteModel(
+            VitMatteForImageMatting.from_pretrained(model_name),
+            VitMatteImageProcessor.from_pretrained(model_name)
+        )
+        return (vitmatte,)
+
+class GenerateVITMatte:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE", {}),
+                "trimap": ("TRIMAP", {}),
+                "vit_matte_model": ("VIT_MATTE_MODEL", {}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE","MASK")
+    FUNCTION = "generate_matte"
+
+    CATEGORY = "Matte Anything"
+
+    def generate_matte(self, image, trimap, vit_matte_model):
+        image = tensor2pil(image)
+        trimap = tensor2pil(trimap).convert("L")
+
+        # prepare image + trimap for the model
+        inputs = vit_matte_model.processor(images=image, trimaps=trimap, return_tensors="pt")
+
+        with torch.no_grad():
+            predictions = vit_matte_model.model(**inputs).alphas
+        
+   
+        mask = tensor2pil(predictions).convert('L')
+       
+        image.putalpha(mask)
+        image = pil2tensor(image)
+        mask = pil2tensor(mask)
+        return (image,mask,)
+
+class MaskToTrimap:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "mask": ("MASK", {}),
+                "erode_kernel_size": ("INT", {"default":10,"min": 1, "step": 1}),
+                "dilate_kernel_size": ("INT", {"default":10,"min": 1, "step": 1}),
+            }
+        }
+
+    RETURN_TYPES = ("TRIMAP")
+    FUNCTION = "get_trimap"
+
+    CATEGORY = "segment_anything"
+
+    def get_trimap(self, mask: torch.Tensor, erode_kernel_size: int, dilate_kernel_size: int):
+        mask = mask.squeeze(0).cpu().detach().numpy().astype(np.uint8)*255
+        trimap = self.generate_trimap(mask, erode_kernel_size, dilate_kernel_size).astype(np.float32)
+        trimap[trimap==128] = 0.5
+        trimap[trimap==255] = 1
+        trimap = torch.from_numpy(trimap).unsqueeze(0)
+      
+        return (trimap)
+    
+    def generate_trimap(self,mask, erode_kernel_size=10, dilate_kernel_size=10):
+        erode_kernel = np.ones((erode_kernel_size, erode_kernel_size), np.uint8)
+        dilate_kernel = np.ones((dilate_kernel_size, dilate_kernel_size), np.uint8)
+        eroded = cv2.erode(mask, erode_kernel, iterations=5)
+        dilated = cv2.dilate(mask, dilate_kernel, iterations=5)
+        trimap = np.zeros_like(mask)
+        trimap[dilated==255] = 128
+        trimap[eroded==255] = 255
+        return trimap
+    
+
+class TrimapToMask:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "trimap": ("TRIMAP", {}),
+            }
+        }
+
+    RETURN_TYPES = ("MASK")
+    FUNCTION = "to_mask"
+
+    CATEGORY = "segment_anything"
+
+    def to_mask(self, trimap: torch.Tensor):
+        return (trimap,)
+    
+    
