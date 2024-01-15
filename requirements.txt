@@ -2,3 +2,4 @@ segment_anything
 timm
 addict
 yapf
+detectron2 @ git+https://github.com/facebookresearch/detectron2.git
