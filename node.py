@@ -454,7 +454,7 @@ class MaskToTrimap:
             }
         }
 
-    RETURN_TYPES = ("TRIMAP")
+    RETURN_TYPES = ("TRIMAP",)
     FUNCTION = "get_trimap"
 
     CATEGORY = "segment_anything"
