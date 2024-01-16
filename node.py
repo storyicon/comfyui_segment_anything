@@ -405,7 +405,6 @@ class VITMatteTransformersModelLoader:
     def load_model(self, model_name):
         model = VitMatteForImageMatting.from_pretrained(model_name)
         processor = VitMatteImageProcessor.from_pretrained(model_name)
-        processor.size_divisibility = 8 # align with SD grid size
         vitmatte = VITMatteModel(
             model,
             processor,
@@ -440,7 +439,7 @@ class GenerateVITMatte:
         
    
         mask = tensor2pil(predictions).convert('L')
-       
+        mask = mask.crop((0,0,image.width,image.height)) # remove padding that the prediction appends (works in 32px tiles)
         image.putalpha(mask)
         image = pil2tensor(image)
         mask = pil2tensor(mask)
