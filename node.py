@@ -403,9 +403,12 @@ class VITMatteTransformersModelLoader:
     CATEGORY = "segment_anything"
 
     def load_model(self, model_name):
+        model = VitMatteForImageMatting.from_pretrained(model_name)
+        processor = VitMatteImageProcessor.from_pretrained(model_name)
+        processor.size_divisibility = 8 # align with SD grid size
         vitmatte = VITMatteModel(
-            VitMatteForImageMatting.from_pretrained(model_name),
-            VitMatteImageProcessor.from_pretrained(model_name)
+            model,
+            processor,
         )
         return (vitmatte,)
 
