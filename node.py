@@ -508,7 +508,7 @@ class MaskToBoundingBox:
         }
     CATEGORY = "mask"
     FUNCTION = "main"
-    RETURN_TYPES = ("BOUNDING_BOX")
+    RETURN_TYPES = ("BOUNDING_BOX",)
     
 
     def main(self, mask):
@@ -534,7 +534,7 @@ class BoundingBox:
         }
     CATEGORY = "mask"
     FUNCTION = "util"
-    RETURN_TYPES = ("BOUNDING_BOX")
+    RETURN_TYPES = ("BOUNDING_BOX",)
     
 
     def main(self, left,top,right,bottom,):
@@ -554,7 +554,7 @@ class BoundingBoxSAMSegment:
         }
     CATEGORY = "segment_anything"
     FUNCTION = "main"
-    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_TYPES = ("IMAGE", "MASK",)
 
     def main(self, sam_model, image, bounding_box):
         res_images = []
