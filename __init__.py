@@ -11,6 +11,9 @@ NODE_CLASS_MAPPINGS = {
     'TrimapToMask (segment anything)': TrimapToMask,
     'InvertMask (segment anything)': InvertMask,
     "IsMaskEmpty": IsMaskEmptyNode,
+    "BoundingBox (segment anything)":BoundingBox,
+    "MaskToBoundingBox (segment anything)":MaskToBoundingBox,
+    "BoundingBoxSAMSegment (segment anything)":BoundingBoxSAMSegment
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS']
