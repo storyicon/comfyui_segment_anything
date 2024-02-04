@@ -11,7 +11,7 @@ sys.path.append(
 import copy
 import torch
 import numpy as np
-from PIL import Image
+from PIL import Image,ImageDraw
 import logging
 from torch.hub import download_url_to_file
 from urllib.parse import urlparse
@@ -577,3 +577,62 @@ class BoundingBoxSAMSegment:
             empty_mask = torch.zeros((1, height, width), dtype=torch.uint8, device="cpu")
             return (empty_mask, empty_mask)
         return (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
+
+
+class GroundingDinoBoundingBoxes:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "grounding_dino_model": ('GROUNDING_DINO_MODEL', {}),
+                "image": ('IMAGE', {}),
+                "prompt": ("STRING", {}),
+                "threshold": ("FLOAT", {
+                    "default": 0.3,
+                    "min": 0,
+                    "max": 1.0,
+                    "step": 0.01
+                }),
+            }
+        }
+    CATEGORY = "segment_anything"
+    FUNCTION = "main"
+    MULTIPE_OUTPUTS=True
+    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_NAMES = ("IMAGE", "MASK")
+
+    def main(self, grounding_dino_model, image, prompt, threshold):
+        res_images = []
+        res_masks = []
+        for item in image:
+            item = Image.fromarray(
+                np.clip(255. * item.cpu().numpy(), 0, 255).astype(np.uint8)).convert('RGBA')
+            boxes = groundingdino_predict(
+                grounding_dino_model,
+                item,
+                prompt,
+                threshold
+            )
+            if boxes.shape[0] == 0:
+                break
+            # (images, masks) = sam_segment(
+            #     sam_model,
+            #     item,
+            #     boxes
+            # )
+            for box in boxes:
+                shape = ((box[0],box[1]),(box[2],box[3]))
+                mask = Image.new("RGB",item.size,"#000000")
+                drawer = ImageDraw.Draw(mask)   
+                drawer.rectangle(shape, fill ="#ffffff") 
+                res_images.append(pil2tensor(mask))
+                res_masks.append(pil2tensor(mask))
+
+            # res_images.extend(boxes)
+            # res_masks.extend(boxes)
+        print(res_images)
+        if len(res_images) == 0:
+            _, height, width, _ = image.size()
+            empty_mask = torch.zeros((1, height, width), dtype=torch.uint8, device="cpu")
+            return (empty_mask, empty_mask)
+        return (torch.cat(res_images), torch.cat(res_masks))

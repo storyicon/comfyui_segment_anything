@@ -13,7 +13,8 @@ NODE_CLASS_MAPPINGS = {
     "IsMaskEmpty": IsMaskEmptyNode,
     "BoundingBox (segment anything)":BoundingBox,
     "MaskToBoundingBox (segment anything)":MaskToBoundingBox,
-    "BoundingBoxSAMSegment (segment anything)":BoundingBoxSAMSegment
+    "BoundingBoxSAMSegment (segment anything)":BoundingBoxSAMSegment,
+    "GroundingDinoBoundingBoxes (segment anything)":GroundingDinoBoundingBoxes
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS']
