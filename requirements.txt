@@ -2,3 +2,4 @@ segment_anything
 timm
 addict
 yapf
+transformers>=4.36.2
