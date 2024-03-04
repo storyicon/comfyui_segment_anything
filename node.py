@@ -226,6 +226,20 @@ def split_image_mask(image):
     return (image_rgb, mask)
 
 
+def mask_grayscale(mask) :
+    
+    byte_mask = np.array(mask,dtype=np.ubyte)
+    n_masks = mask.shape[1]
+    n_range = 255//n_masks
+    blank = np.zeros_like(byte_mask[0,0,:,:],dtype=np.ubyte)
+    for i in range(n_masks) :
+        blank+=(i+1)*n_range*byte_mask[0,i,:,:]
+    
+    blank = torch.from_numpy(blank)
+    blank = blank.reshape([1,1,blank.shape[0], blank.shape[1]])
+    print('blank.shape', blank.shape)
+    return blank
+
 def sam_segment(
     sam_model,
     image,
@@ -250,7 +264,11 @@ def sam_segment(
         boxes=transformed_boxes.to(sam_device),
         multimask_output=False)
     masks = masks.permute(1, 0, 2, 3).cpu().numpy()
-    return create_tensor_output(image_np, masks, boxes)
+    print('sam masks', masks.shape)
+    image_final, mask_final = create_tensor_output(image_np, masks, boxes)
+    print('masks.final', mask_final[0].shape, len(mask_final))
+    mask_gs = mask_grayscale(masks)
+    return image_final, mask_gs
 
 
 class SAMModelLoader:
@@ -333,8 +351,8 @@ class GroundingDinoSAMSegment:
             _, height, width, _ = image.size()
             empty_mask = torch.zeros((1, height, width), dtype=torch.uint8, device="cpu")
             return (empty_mask, empty_mask)
-        return (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
-
+        
+        return  (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
 
 class InvertMask:
     @classmethod
