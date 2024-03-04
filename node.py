@@ -225,9 +225,12 @@ def split_image_mask(image):
         mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
     return (image_rgb, mask)
 
-
-def mask_grayscale(mask) :
-    
+def combine_multiple_masks(mask) :
+    """
+    This packs all the masks into a single image with a different
+    value for each mask. Really only works with 255 different masks
+    but that should be a lot more than I need.
+    """
     byte_mask = np.array(mask,dtype=np.ubyte)
     n_masks = mask.shape[1]
     n_range = 255//n_masks
@@ -264,11 +267,9 @@ def sam_segment(
         boxes=transformed_boxes.to(sam_device),
         multimask_output=False)
     masks = masks.permute(1, 0, 2, 3).cpu().numpy()
-    print('sam masks', masks.shape)
-    image_final, mask_final = create_tensor_output(image_np, masks, boxes)
-    print('masks.final', mask_final[0].shape, len(mask_final))
-    mask_gs = mask_grayscale(masks)
-    return image_final, mask_gs
+    masked_image, single_mask = create_tensor_output(image_np, masks, boxes)
+    #all_mask = mask_grayscale(masks)
+    return masked_image, single_mask, masks
 
 
 class SAMModelLoader:
@@ -320,6 +321,69 @@ class GroundingDinoSAMSegment:
                     "max": 1.0,
                     "step": 0.01
                 }),
+                "mask" : ("STRING",{
+                    "default" : "single",
+                }),
+            }
+        }
+    CATEGORY = "segment_anything"
+    FUNCTION = "main"
+    RETURN_TYPES = ("IMAGE", "MASK")
+
+    def main(self, grounding_dino_model, sam_model, image, prompt, threshold, mask):
+        if mask not in ["single", "multiple"]:
+            raise ValueError(f"Mask must be single or multiple, got {mask}")
+
+        res_images = []
+        res_masks = []
+
+        for item in image:
+            item = Image.fromarray(
+                np.clip(255. * item.cpu().numpy(), 0, 255).astype(np.uint8)).convert('RGBA')
+            boxes = groundingdino_predict(
+                grounding_dino_model,
+                item,
+                prompt,
+                threshold
+            )
+            if boxes.shape[0] == 0:
+                break
+            (images, masks, multi_mask) = sam_segment(
+                sam_model,
+                item,
+                boxes
+            )
+            res_images.extend(images)
+            if mask == "single" :
+                res_masks.extend(masks)
+            elif mask == "multiple" :
+                multi_mask = combine_multiple_masks(multi_mask)
+                res_masks.extend(multi_mask)
+
+        if len(res_images) == 0:
+            _, height, width, _ = image.size()
+            empty_mask = torch.zeros((1, height, width), dtype=torch.uint8, device="cpu")
+            return (empty_mask, empty_mask)
+        
+        combined_images, combined_masks = (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
+        print('combined_images.shape', combined_images.shape, 'combined_masks.shape', combined_masks.shape)
+        return combined_images, combined_masks
+
+class GroundingDinoSAMMask:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "sam_model": ('SAM_MODEL', {}),
+                "grounding_dino_model": ('GROUNDING_DINO_MODEL', {}),
+                "image": ('IMAGE', {}),
+                "prompt": ("STRING", {}),
+                "threshold": ("FLOAT", {
+                    "default": 0.3,
+                    "min": 0,
+                    "max": 1.0,
+                    "step": 0.01
+                }),
             }
         }
     CATEGORY = "segment_anything"
@@ -353,6 +417,8 @@ class GroundingDinoSAMSegment:
             return (empty_mask, empty_mask)
         
         return  (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
+
+
 
 class InvertMask:
     @classmethod
