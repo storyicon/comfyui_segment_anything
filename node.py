@@ -228,8 +228,7 @@ def split_image_mask(image):
 def combine_multiple_masks(mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     This packs all the masks into a single image with a different
-    value for each mask. Really only works with 255 different masks
-    but that should be a lot more than I need.
+    value for each mask. Really only works with 255 different masks.
     :param mask: a batch of masks with dimension [N,A,B] where
     N is the number of masks and A, B are the spatial dimensions
     :return: A mask where N are combined into a single mask with
