@@ -225,7 +225,7 @@ def split_image_mask(image):
         mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
     return (image_rgb, mask)
 
-def combine_multiple_masks(mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+def combine_multiple_masks(mask: torch.Tensor) -> torch.Tensor:
     """
     This packs all the masks into a single image with a different
     value for each mask. Really only works with 255 different masks.
