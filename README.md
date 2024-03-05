@@ -58,6 +58,10 @@ Please directly download the model files to the `models/sams` directory under th
 | sam_hq_vit_b | 379MB |[download link](https://huggingface.co/lkeab/hq-sam/resolve/main/sam_hq_vit_b.pth) |
 | mobile_sam | 39MB |[download link](https://github.com/ChaoningZhang/MobileSAM/blob/master/weights/mobile_sam.pt) |
 
+## Multiple Masks
+
+![Using multiple masks](./docs/images/MultiMask.jpg)
+
 
 ## Contribution
 

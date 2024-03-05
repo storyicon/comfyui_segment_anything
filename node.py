@@ -373,6 +373,22 @@ class GroundingDinoSAMSegment:
         combined_images, combined_masks = (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
         return combined_images, combined_masks
 
+class MultiMaskToImage:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "mask": ("MASK",),
+            }
+        }
+    
+    CATEGORY = "segment_anything"
+    FUNCTION = "main"
+    RETURN_TYPES = ("IMAGE",)
+
+    def main(self, mask):
+        out =torch.tensor(mask,dtype=torch.float32)/255
+        return (out,)
 
 class InvertMask:
     @classmethod
