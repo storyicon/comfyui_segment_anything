@@ -13,14 +13,10 @@ from torch.hub import download_url_to_file
 from urllib.parse import urlparse
 import folder_paths
 import comfy.model_management
-from sam_hq.predictor import SamPredictorHQ
-from sam_hq.build_sam_hq import sam_model_registry
-from local_groundingdino.datasets import transforms as T
-from local_groundingdino.util.utils import clean_state_dict as local_groundingdino_clean_state_dict
-from local_groundingdino.util.slconfig import SLConfig as local_groundingdino_SLConfig
-from local_groundingdino.models import build_model as local_groundingdino_build_model
 import glob
 import folder_paths
+from sam_hq.predictor import SamPredictorHQ
+from sam_hq.build_sam_hq import sam_model_registry
 
 logger = logging.getLogger('comfyui_segment_anything')
 
@@ -113,6 +109,10 @@ def get_local_filepath(url, dirname, local_file_name=None):
 
 
 def load_groundingdino_model(model_name):
+    from local_groundingdino.util.utils import clean_state_dict as local_groundingdino_clean_state_dict
+    from local_groundingdino.util.slconfig import SLConfig as local_groundingdino_SLConfig
+    from local_groundingdino.models import build_model as local_groundingdino_build_model
+
     dino_model_args = local_groundingdino_SLConfig.fromfile(
         get_local_filepath(
             groundingdino_model_list[model_name]["config_url"],
@@ -149,6 +149,7 @@ def groundingdino_predict(
     threshold
 ):
     def load_dino_image(image_pil):
+        from local_groundingdino.datasets import transforms as T
         transform = T.Compose(
             [
                 T.RandomResize([800], max_size=1333),
