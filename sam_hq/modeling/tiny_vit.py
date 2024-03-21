@@ -178,7 +178,7 @@ class ConvLayer(nn.Module):
     def forward(self, x):
         for blk in self.blocks:
             if self.use_checkpoint:
-                x = checkpoint.checkpoint(blk, x)
+                x = checkpoint.checkpoint(blk, x, use_reentrant = True)
             else:
                 x = blk(x)
         if self.downsample is not None:
@@ -434,7 +434,7 @@ class BasicLayer(nn.Module):
     def forward(self, x):
         for blk in self.blocks:
             if self.use_checkpoint:
-                x = checkpoint.checkpoint(blk, x)
+                x = checkpoint.checkpoint(blk, x, use_reentrant = True)
             else:
                 x = blk(x)
         if self.downsample is not None:
