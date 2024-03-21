@@ -62,9 +62,10 @@ sam_model_registry = {
 
 def _load_sam_checkpoint(sam: Sam, checkpoint=None):
     sam.eval()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if checkpoint is not None:
         with open(checkpoint, "rb") as f:
-            state_dict = torch.load(f)
+            state_dict = torch.load(f, device)
         info = sam.load_state_dict(state_dict, strict=False)
         print(info)
     for _, p in sam.named_parameters():
