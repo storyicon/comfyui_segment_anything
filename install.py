@@ -14,4 +14,5 @@ def ensure_package():
     cmds = build_pip_install_cmds(['-r', 'requirements.txt'])
     subprocess.run(cmds, cwd=custom_nodes_path)
 
-ensure_package()
+if __name__ == "__main__":
+    ensure_package()
