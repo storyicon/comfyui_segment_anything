@@ -1,4 +1,4 @@
 segment_anything
-timm
+timm>=0.9.0
 addict
 yapf
