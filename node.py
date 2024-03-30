@@ -112,7 +112,6 @@ def get_local_filepath(url, dirname, local_file_name=None):
         os.makedirs(folder)
 
     destination = os.path.join(folder, local_file_name)
-    print(destination)
     if not os.path.exists(destination):
         logger.warn(f'downloading {url} to {destination}')
         download_url_to_file(url, destination)
