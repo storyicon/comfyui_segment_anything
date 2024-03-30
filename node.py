@@ -24,6 +24,7 @@ import folder_paths
 
 logger = logging.getLogger('comfyui_segment_anything')
 
+model_cache = {}
 sam_model_dir_name = "sams"
 sam_model_list = {
     "sam_vit_h (2.56GB)": {
@@ -76,18 +77,23 @@ def list_sam_model():
     return list(sam_model_list.keys())
 
 
-def load_sam_model(model_name):
-    sam_checkpoint_path = get_local_filepath(
-        sam_model_list[model_name]["model_url"], sam_model_dir_name)
-    model_file_name = os.path.basename(sam_checkpoint_path)
-    model_type = model_file_name.split('.')[0]
-    if 'hq' not in model_type and 'mobile' not in model_type:
-        model_type = '_'.join(model_type.split('_')[:-1])
-    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint_path)
+def load_sam_model(model_name, cache=True):
+    global model_cache
+    sam = model_cache.get(model_name, None)
+    if sam is None:
+        sam_checkpoint_path = get_local_filepath(
+            sam_model_list[model_name]["model_url"], sam_model_dir_name)
+        model_file_name = os.path.basename(sam_checkpoint_path)
+        model_type = model_file_name.split('.')[0]
+        if 'hq' not in model_type and 'mobile' not in model_type:
+            model_type = '_'.join(model_type.split('_')[:-1])
+        sam = sam_model_registry[model_type](checkpoint=sam_checkpoint_path)
+        sam.model_name = model_file_name
+        if cache:
+            model_cache[model_name] = sam
     sam_device = comfy.model_management.get_torch_device()
     sam.to(device=sam_device)
     sam.eval()
-    sam.model_name = model_file_name
     return sam
 
 
@@ -95,7 +101,7 @@ def get_local_filepath(url, dirname, local_file_name=None):
     if not local_file_name:
         parsed_url = urlparse(url)
         local_file_name = os.path.basename(parsed_url.path)
-
+    
     destination = folder_paths.get_full_path(dirname, local_file_name)
     if destination:
         logger.warn(f'using extra model: {destination}')
@@ -106,35 +112,42 @@ def get_local_filepath(url, dirname, local_file_name=None):
         os.makedirs(folder)
 
     destination = os.path.join(folder, local_file_name)
+    print(destination)
     if not os.path.exists(destination):
         logger.warn(f'downloading {url} to {destination}')
         download_url_to_file(url, destination)
     return destination
 
 
-def load_groundingdino_model(model_name):
-    dino_model_args = local_groundingdino_SLConfig.fromfile(
-        get_local_filepath(
-            groundingdino_model_list[model_name]["config_url"],
-            groundingdino_model_dir_name
-        ),
-    )
+def load_groundingdino_model(model_name, cache=True):
+    global model_cache
+    dino = model_cache.get(model_name, None)
+    if dino is None:
+        dino_model_args = local_groundingdino_SLConfig.fromfile(
+            get_local_filepath(
+                groundingdino_model_list[model_name]["config_url"],
+                groundingdino_model_dir_name
+            ),
+        )
 
-    if dino_model_args.text_encoder_type == 'bert-base-uncased':
-        dino_model_args.text_encoder_type = get_bert_base_uncased_model_path()
-    
-    dino = local_groundingdino_build_model(dino_model_args)
-    checkpoint = torch.load(
-        get_local_filepath(
-            groundingdino_model_list[model_name]["model_url"],
-            groundingdino_model_dir_name,
-        ),
-    )
-    dino.load_state_dict(local_groundingdino_clean_state_dict(
-        checkpoint['model']), strict=False)
+        if dino_model_args.text_encoder_type == 'bert-base-uncased':
+            dino_model_args.text_encoder_type = get_bert_base_uncased_model_path()
+        
+        dino = local_groundingdino_build_model(dino_model_args)
+        checkpoint = torch.load(
+            get_local_filepath(
+                groundingdino_model_list[model_name]["model_url"],
+                groundingdino_model_dir_name,
+            ),
+        )
+        dino.load_state_dict(local_groundingdino_clean_state_dict(
+            checkpoint['model']), strict=False)
+        if cache:
+            model_cache[model_name] = dino
     device = comfy.model_management.get_torch_device()
     dino.to(device=device)
     dino.eval()
+
     return dino
 
 
@@ -259,14 +272,15 @@ class SAMModelLoader:
         return {
             "required": {
                 "model_name": (list_sam_model(), ),
+                "global_cache": ('BOOLEAN', {"default": True}),
             }
         }
     CATEGORY = "segment_anything"
     FUNCTION = "main"
     RETURN_TYPES = ("SAM_MODEL", )
 
-    def main(self, model_name):
-        sam_model = load_sam_model(model_name)
+    def main(self, model_name, global_cache):
+        sam_model = load_sam_model(model_name, cache=global_cache)
         return (sam_model, )
 
 
@@ -276,14 +290,15 @@ class GroundingDinoModelLoader:
         return {
             "required": {
                 "model_name": (list_groundingdino_model(), ),
+                "global_cache": ('BOOLEAN', {"default": True})
             }
         }
     CATEGORY = "segment_anything"
     FUNCTION = "main"
     RETURN_TYPES = ("GROUNDING_DINO_MODEL", )
 
-    def main(self, model_name):
-        dino_model = load_groundingdino_model(model_name)
+    def main(self, model_name, global_cache):
+        dino_model = load_groundingdino_model(model_name, cache=global_cache)
         return (dino_model, )
 
 
