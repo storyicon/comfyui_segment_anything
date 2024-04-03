@@ -331,8 +331,9 @@ class GroundingDinoSAMSegment:
             res_masks.extend(masks)
         if len(res_images) == 0:
             _, height, width, _ = image.size()
-            empty_mask = torch.zeros((1, height, width), dtype=torch.uint8, device="cpu")
-            return (empty_mask, empty_mask)
+            empty_images = torch.zeros((1, height, width,3), dtype=torch.float32, device="cpu")
+            empty_masks = torch.zeros((1, height, width), dtype=torch.float32, device="cpu")
+            return (empty_images, empty_masks)
         return (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
 
 
