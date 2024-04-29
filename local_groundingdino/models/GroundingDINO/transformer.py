@@ -39,39 +39,36 @@ from .utils import (
 
 class Transformer(nn.Module):
     def __init__(
-        self,
-        d_model=256,
-        nhead=8,
-        num_queries=300,
-        num_encoder_layers=6,
-        num_unicoder_layers=0,
-        num_decoder_layers=6,
-        dim_feedforward=2048,
-        dropout=0.0,
-        activation="relu",
-        normalize_before=False,
-        return_intermediate_dec=False,
-        query_dim=4,
-        num_patterns=0,
-        # for deformable encoder
-        num_feature_levels=1,
-        enc_n_points=4,
-        dec_n_points=4,
-        # init query
-        learnable_tgt_init=False,
-        # two stage
-        two_stage_type="no",  # ['no', 'standard', 'early', 'combine', 'enceachlayer', 'enclayer1']
-        embed_init_tgt=False,
-        # for text
-        use_text_enhancer=False,
-        use_fusion_layer=False,
-        use_checkpoint=False,
-        use_transformer_ckpt=False,
-        use_text_cross_attention=False,
-        text_dropout=0.1,
-        fusion_dropout=0.1,
-        fusion_droppath=0.0,
-    ):
+            self,
+            d_model: int = 256,
+            nhead: int = 8,
+            num_queries: int = 300,
+            num_encoder_layers: int = 6,
+            num_unicoder_layers: int = 0,
+            num_decoder_layers: int = 6,
+            dim_feedforward: int = 2048,
+            dropout: float = 0.0,
+            activation: str = "relu",
+            normalize_before: bool = False,
+            return_intermediate_dec: bool = False,
+            query_dim: int = 4,
+            num_patterns: int = 0,
+            num_feature_levels: int = 1,
+            enc_n_points: int = 4,
+            dec_n_points: int = 4,
+            learnable_tgt_init: bool = False,
+            two_stage_type: str = "no",
+            embed_init_tgt: bool = False,
+            use_text_enhancer: bool = False,
+            use_fusion_layer: bool = False,
+            use_checkpoint: bool = False,
+            use_transformer_ckpt: bool = False,
+            use_text_cross_attention: bool = False,
+            text_dropout: float = 0.1,
+            fusion_dropout: float = 0.1,
+            fusion_droppath: float = 0.0,
+        ) -> None:
+        """Initializes a Transformer model with customizable parameters for encoder and decoder layers, including options for text enhancement, feature fusion, and two-stage processing. The function sets up the model architecture and embeddings based on the provided configurations."""
         super().__init__()
         self.num_feature_levels = num_feature_levels
         self.num_encoder_layers = num_encoder_layers
@@ -208,7 +205,7 @@ class Transformer(nn.Module):
     def init_ref_points(self, use_num_queries):
         self.refpoint_embed = nn.Embedding(use_num_queries, 4)
 
-    def forward(self, srcs, masks, refpoint_embed, pos_embeds, tgt, attn_mask=None, text_dict=None):
+    def forward(self, srcs: list[torch.Tensor], masks: list[torch.Tensor], refpoint_embed: torch.Tensor | None, pos_embeds: list[torch.Tensor], tgt: torch.Tensor, attn_mask: torch.Tensor | None = None, text_dict: dict[str, torch.Tensor] | None = None) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor]:
         """
         Input:
             - srcs: List of multi features [bs, ci, hi, wi]
@@ -405,17 +402,17 @@ class Transformer(nn.Module):
 
 class TransformerEncoder(nn.Module):
     def __init__(
-        self,
-        encoder_layer,
-        num_layers,
-        d_model=256,
-        num_queries=300,
-        enc_layer_share=False,
-        text_enhance_layer=None,
-        feature_fusion_layer=None,
-        use_checkpoint=False,
-        use_transformer_ckpt=False,
-    ):
+            self,
+            encoder_layer: nn.Module,
+            num_layers: int,
+            d_model: int = 256,
+            num_queries: int = 300,
+            enc_layer_share: bool = False,
+            text_enhance_layer: nn.Module | None = None,
+            feature_fusion_layer: nn.Module | None = None,
+            use_checkpoint: bool = False,
+            use_transformer_ckpt: bool = False,
+        ) -> None:
         """_summary_
 
         Args:
@@ -480,21 +477,19 @@ class TransformerEncoder(nn.Module):
         return reference_points
 
     def forward(
-        self,
-        # for images
-        src: Tensor,
-        pos: Tensor,
-        spatial_shapes: Tensor,
-        level_start_index: Tensor,
-        valid_ratios: Tensor,
-        key_padding_mask: Tensor,
-        # for texts
-        memory_text: Tensor = None,
-        text_attention_mask: Tensor = None,
-        pos_text: Tensor = None,
-        text_self_attention_masks: Tensor = None,
-        position_ids: Tensor = None,
-    ):
+            self,
+            src: torch.Tensor,
+            pos: torch.Tensor,
+            spatial_shapes: torch.Tensor,
+            level_start_index: torch.Tensor,
+            valid_ratios: torch.Tensor,
+            key_padding_mask: torch.Tensor,
+            memory_text: torch.Tensor | None = None,
+            text_attention_mask: torch.Tensor | None = None,
+            pos_text: torch.Tensor | None = None,
+            text_self_attention_masks: torch.Tensor | None = None,
+            position_ids: torch.Tensor | None = None,
+        ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Input:
             - src: [bs, sum(hi*wi), 256]
@@ -597,15 +592,16 @@ class TransformerEncoder(nn.Module):
 
 class TransformerDecoder(nn.Module):
     def __init__(
-        self,
-        decoder_layer,
-        num_layers,
-        norm=None,
-        return_intermediate=False,
-        d_model=256,
-        query_dim=4,
-        num_feature_levels=1,
-    ):
+            self,
+            decoder_layer: nn.Module,
+            num_layers: int,
+            norm: None | Any = None,
+            return_intermediate: bool = False,
+            d_model: int = 256,
+            query_dim: int = 4,
+            num_feature_levels: int = 1,
+        ) -> None:
+        """Initializes a decoder module with a specified number of layers, allowing for intermediate results to be returned. It clones the input decoder layer based on the number of layers provided, supports different normalization methods, and sets up various components for further processing."""
         super().__init__()
         if num_layers > 0:
             self.layers = _get_clones(decoder_layer, num_layers)
@@ -631,23 +627,21 @@ class TransformerDecoder(nn.Module):
         self.ref_anchor_head = None
 
     def forward(
-        self,
-        tgt,
-        memory,
-        tgt_mask: Optional[Tensor] = None,
-        memory_mask: Optional[Tensor] = None,
-        tgt_key_padding_mask: Optional[Tensor] = None,
-        memory_key_padding_mask: Optional[Tensor] = None,
-        pos: Optional[Tensor] = None,
-        refpoints_unsigmoid: Optional[Tensor] = None,  # num_queries, bs, 2
-        # for memory
-        level_start_index: Optional[Tensor] = None,  # num_levels
-        spatial_shapes: Optional[Tensor] = None,  # bs, num_levels, 2
-        valid_ratios: Optional[Tensor] = None,
-        # for text
-        memory_text: Optional[Tensor] = None,
-        text_attention_mask: Optional[Tensor] = None,
-    ):
+            self,
+            tgt: torch.Tensor,
+            memory: torch.Tensor,
+            tgt_mask: torch.Tensor | None = None,
+            memory_mask: torch.Tensor | None = None,
+            tgt_key_padding_mask: torch.Tensor | None = None,
+            memory_key_padding_mask: torch.Tensor | None = None,
+            pos: torch.Tensor | None = None,
+            refpoints_unsigmoid: torch.Tensor | None,
+            level_start_index: torch.Tensor | None = None,
+            spatial_shapes: torch.Tensor | None = None,
+            valid_ratios: torch.Tensor | None,
+            memory_text: torch.Tensor | None = None,
+            text_attention_mask: torch.Tensor | None = None,
+        ) -> list[list[torch.Tensor], list[torch.Tensor]]:
         """
         Input:
             - tgt: nq, bs, d_model
@@ -737,15 +731,16 @@ class TransformerDecoder(nn.Module):
 
 class DeformableTransformerEncoderLayer(nn.Module):
     def __init__(
-        self,
-        d_model=256,
-        d_ffn=1024,
-        dropout=0.1,
-        activation="relu",
-        n_levels=4,
-        n_heads=8,
-        n_points=4,
-    ):
+            self,
+            d_model: int = 256,
+            d_ffn: int = 1024,
+            dropout: float = 0.1,
+            activation: str,
+            n_levels: int = 4,
+            n_heads: int = 8,
+            n_points: int = 4,
+        ) -> None:
+        """Initializes a transformer layer with multi-scale deformable attention and feed-forward network components, applying dropout and normalization."""
         super().__init__()
 
         # self attention
@@ -801,17 +796,18 @@ class DeformableTransformerEncoderLayer(nn.Module):
 
 class DeformableTransformerDecoderLayer(nn.Module):
     def __init__(
-        self,
-        d_model=256,
-        d_ffn=1024,
-        dropout=0.1,
-        activation="relu",
-        n_levels=4,
-        n_heads=8,
-        n_points=4,
-        use_text_feat_guide=False,
-        use_text_cross_attention=False,
-    ):
+            self,
+            d_model: int = 256,
+            d_ffn: int = 1024,
+            dropout: float = 0.1,
+            activation: str,
+            n_levels: int = 4,
+            n_heads: int = 8,
+            n_points: int = 4,
+            use_text_feat_guide: bool = False,
+            use_text_cross_attention: bool = False,
+        ) -> None:
+        """Initialize a model with multi-head self-attention and cross-attention mechanisms, utilizing deformable attention for cross-attention. Includes feedforward neural network layers with specified activation functions and layer normalization."""
         super().__init__()
 
         # cross attention
@@ -927,7 +923,8 @@ class DeformableTransformerDecoderLayer(nn.Module):
         return tgt
 
 
-def build_transformer(args):
+def build_transformer(args: dict) -> Transformer:
+    """Builds a Transformer model using the provided arguments and returns the initialized Transformer object. The function sets various parameters such as hidden dimension, dropout rate, number of heads, number of layers, normalization settings, activation function, and other configuration options for the Transformer model."""
     return Transformer(
         d_model=args.hidden_dim,
         dropout=args.dropout,

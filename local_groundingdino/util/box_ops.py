@@ -12,14 +12,16 @@ def box_cxcywh_to_xyxy(x):
     return torch.stack(b, dim=-1)
 
 
-def box_xyxy_to_cxcywh(x):
+def box_xyxy_to_cxcywh(x: torch.tensor) -> torch.tensor:
+    """Converts bounding box coordinates from (x0, y0, x1, y1) format to (center_x, center_y, width, height) format using a torch tensor and returns the result"""
     x0, y0, x1, y1 = x.unbind(-1)
     b = [(x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0), (y1 - y0)]
     return torch.stack(b, dim=-1)
 
 
 # modified from torchvision to also return the union
-def box_iou(boxes1, boxes2):
+def box_iou(boxes1: torch.tensor, boxes2: torch.tensor) -> tuple[torch.tensor, torch.tensor]:
+    """Computes the Intersection over Union (IoU) and union of two sets of bounding boxes represented as tensors."""
     area1 = box_area(boxes1)
     area2 = box_area(boxes2)
 
@@ -36,7 +38,7 @@ def box_iou(boxes1, boxes2):
     return iou, union
 
 
-def generalized_box_iou(boxes1, boxes2):
+def generalized_box_iou(boxes1: torch.tensor, boxes2: torch.tensor) -> tuple[torch.tensor, torch.tensor]:
     """
     Generalized IoU from https://giou.stanford.edu/
 
@@ -63,7 +65,8 @@ def generalized_box_iou(boxes1, boxes2):
 
 
 # modified from torchvision to also return the union
-def box_iou_pairwise(boxes1, boxes2):
+def box_iou_pairwise(boxes1: torch.tensor, boxes2: torch.tensor) -> tuple[torch.tensor, torch.tensor]:
+    """Computes the pairwise intersection over union (IoU) for two sets of bounding boxes represented as tensors. It calculates the IoU and union of the boxes and returns them as a tuple of tensors."""
     area1 = box_area(boxes1)
     area2 = box_area(boxes2)
 
@@ -79,7 +82,7 @@ def box_iou_pairwise(boxes1, boxes2):
     return iou, union
 
 
-def generalized_box_iou_pairwise(boxes1, boxes2):
+def generalized_box_iou_pairwise(boxes1: torch.tensor, boxes2: torch.tensor) -> torch.tensor:
     """
     Generalized IoU from https://giou.stanford.edu/
 

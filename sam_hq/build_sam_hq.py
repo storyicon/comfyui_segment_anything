@@ -15,7 +15,8 @@ from segment_anything.modeling import PromptEncoder, Sam, TwoWayTransformer, Mas
 from segment_anything import build_sam_vit_h, build_sam_vit_l, build_sam_vit_b
 
 
-def build_sam_hq_vit_h(checkpoint=None):
+def build_sam_hq_vit_h(checkpoint: str | None = None) -> torch.Sam:
+    """Builds a SAM optimizer with specified encoder parameters, loads a checkpoint if provided, and returns the updated SAM optimizer."""
     return _build_sam_hq(
         encoder_embed_dim=1280,
         encoder_depth=32,
@@ -25,7 +26,8 @@ def build_sam_hq_vit_h(checkpoint=None):
     )
 
 
-def build_sam_hq_vit_l(checkpoint=None):
+def build_sam_hq_vit_l(checkpoint: str | None = None) -> torch.Sam:
+    """Builds a SAM optimizer with specified encoder parameters, loads a checkpoint if provided, and returns the updated SAM optimizer."""
     return _build_sam_hq(
         encoder_embed_dim=1024,
         encoder_depth=24,
@@ -35,7 +37,8 @@ def build_sam_hq_vit_l(checkpoint=None):
     )
 
 
-def build_sam_hq_vit_b(checkpoint=None):
+def build_sam_hq_vit_b(checkpoint: str | None = None) -> torch.Sam:
+    """Builds a SAM optimizer with specified Vision Transformer (ViT) encoder parameters, loads a checkpoint if provided, and returns the updated SAM optimizer."""
     return _build_sam_hq(
         encoder_embed_dim=768,
         encoder_depth=12,
@@ -45,7 +48,8 @@ def build_sam_hq_vit_b(checkpoint=None):
     )
 
 
-def build_mobile_sam(checkpoint=None):
+def build_mobile_sam(checkpoint: str | None = None) -> Sam:
+    """Builds a mobile version of the SAM optimizer with specific configurations, loads a checkpoint if provided, and returns the updated SAM optimizer."""
     return _build_mobile_sam(checkpoint)
 
 
@@ -60,7 +64,8 @@ sam_model_registry = {
 }
 
 
-def _load_sam_checkpoint(sam: Sam, checkpoint=None):
+def _load_sam_checkpoint(sam: torch.Sam, checkpoint: str | None = None) -> torch.Sam:
+    """Loads a checkpoint for a SAM optimizer, sets the model to evaluation mode, updates the model's state dictionary if a checkpoint is provided, freezes all model parameters, and returns the updated SAM optimizer."""
     sam.eval()
     if checkpoint is not None:
         with open(checkpoint, "rb") as f:
@@ -71,13 +76,8 @@ def _load_sam_checkpoint(sam: Sam, checkpoint=None):
         p.requires_grad = False
     return sam
 
-def _build_sam_hq(
-    encoder_embed_dim,
-    encoder_depth,
-    encoder_num_heads,
-    encoder_global_attn_indexes,
-    checkpoint=None,
-):
+def _build_sam_hq(encoder_embed_dim: int, encoder_depth: int, encoder_num_heads: int, encoder_global_attn_indexes: list[int], checkpoint: str | None = None) -> torch.Sam:
+    """Builds a SAM optimizer with specified encoder parameters, loads a checkpoint if provided, and returns the updated SAM optimizer."""
     prompt_embed_dim = 256
     image_size = 1024
     vit_patch_size = 16
@@ -122,7 +122,8 @@ def _build_sam_hq(
     return _load_sam_checkpoint(sam, checkpoint)
 
 
-def _build_mobile_sam(checkpoint=None):
+def _build_mobile_sam(checkpoint: str | None = None) -> Sam:
+    """Builds a mobile version of the SAM optimizer with specific configurations, loads a checkpoint if provided, and returns the updated SAM optimizer."""
     prompt_embed_dim = 256
     image_size = 1024
     vit_patch_size = 16

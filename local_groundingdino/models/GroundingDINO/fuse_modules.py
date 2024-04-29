@@ -40,14 +40,14 @@ def l1norm(X, dim, eps=1e-8):
     return X
 
 
-def l2norm(X, dim, eps=1e-8):
+def l2norm(X: torch.Tensor, dim: int, eps: float = 1e-8) -> torch.Tensor:
     """L2-normalize columns of X"""
     norm = torch.pow(X, 2).sum(dim=dim, keepdim=True).sqrt() + eps
     X = torch.div(X, norm)
     return X
 
 
-def func_attention(query, context, smooth=1, raw_feature_norm="softmax", eps=1e-8):
+def func_attention(query: torch.Tensor, context: torch.Tensor, smooth: int, raw_feature_norm: str, eps: float = 1e-8) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     query: (n_context, queryL, d)
     context: (n_context, sourceL, d)
@@ -251,16 +251,16 @@ class BiMultiHeadAttention(nn.Module):
 # Bi-Direction MHA (text->image, image->text)
 class BiAttentionBlock(nn.Module):
     def __init__(
-        self,
-        v_dim,
-        l_dim,
-        embed_dim,
-        num_heads,
-        dropout=0.1,
-        drop_path=0.0,
-        init_values=1e-4,
-        cfg=None,
-    ):
+            self,
+            v_dim: int,
+            l_dim: int,
+            embed_dim: int,
+            num_heads: int,
+            dropout: float = 0.1,
+            drop_path: float = 0.0,
+            init_values: float = 1e-4,
+            cfg: None | Any = None,
+        ) -> None:
         """
         Inputs:
             embed_dim - Dimensionality of input and attention feature vectors

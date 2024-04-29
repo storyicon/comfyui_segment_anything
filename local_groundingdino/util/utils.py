@@ -12,7 +12,8 @@ from transformers import AutoTokenizer
 from local_groundingdino.util.slconfig import SLConfig
 
 
-def slprint(x, name="x"):
+def slprint(x: torch.Tensor | np.ndarray | tuple | list | dict, name: str = "x") -> None:
+    """Prints the shape of a torch.Tensor or np.ndarray, recursively prints elements of a tuple or list up to a maximum of 10 elements, and recursively prints values of a dictionary."""
     if isinstance(x, (torch.Tensor, np.ndarray)):
         print(f"{name}.shape:", x.shape)
     elif isinstance(x, (tuple, list)):
@@ -26,7 +27,8 @@ def slprint(x, name="x"):
         print(f"{name}.type:", type(x))
 
 
-def clean_state_dict(state_dict):
+def clean_state_dict(state_dict: dict[str, Any]) -> dict[str, Any]:
+    """Removes the prefix "module." from keys in a dictionary and returns a new dictionary with the modified keys."""
     new_state_dict = OrderedDict()
     for k, v in state_dict.items():
         if k[:7] == "module.":
@@ -157,7 +159,8 @@ class CocoClassMapper:
         return self.compact2origin_mapper[int(idx)]
 
 
-def to_device(item, device):
+def to_device(item: torch.Tensor | list | dict, device) -> torch.Tensor | list | dict:
+    """Moves a torch.Tensor or a nested list/dictionary of torch.Tensor to the specified device recursively. If the input is a torch.Tensor, it is moved to the device. If the input is a list, each element is recursively moved to the device. If the input is a dictionary, each value is recursively moved to the device while keeping the keys intact."""
     if isinstance(item, torch.Tensor):
         return item.to(device)
     elif isinstance(item, list):
@@ -171,7 +174,7 @@ def to_device(item, device):
 
 
 #
-def get_gaussian_mean(x, axis, other_axis, softmax=True):
+def get_gaussian_mean(x: torch.Tensor, axis: int, other_axis: int, softmax: bool = True) -> torch.Tensor:
     """
 
     Args:
@@ -197,7 +200,7 @@ def get_gaussian_mean(x, axis, other_axis, softmax=True):
     return mean_position
 
 
-def get_expected_points_from_map(hm, softmax=True):
+def get_expected_points_from_map(hm: torch.Tensor, softmax: bool = True) -> torch.Tensor:
     """get_gaussian_map_from_points
         B,C,H,W -> B,N,2 float(0, 1) float(0, 1)
         softargmax function
@@ -252,7 +255,8 @@ class Embedder:
         return torch.cat([fn(inputs) for fn in self.embed_fns], -1)
 
 
-def get_embedder(multires, i=0):
+def get_embedder(multires: int, i: int = 0) -> tuple[callable, int]:
+    """Returns an embedder function and its output dimension based on the provided multiresolution factor and an optional index parameter. If the index is -1, returns an identity function and 3 as the output dimension. Otherwise, constructs an embedder object with specified parameters and returns a lambda function that embeds input using the embedder object along with the output dimension of the embedder."""
     import torch.nn as nn
 
     if i == -1:
@@ -402,7 +406,7 @@ class NiceRepr:
             return object.__repr__(self)
 
 
-def ensure_rng(rng=None):
+def ensure_rng(rng: int | np.random.RandomState | None = None) -> np.random.RandomState:
     """Coerces input into a random number generator.
 
     If the input is None, then a global random state is returned.
@@ -433,7 +437,7 @@ def ensure_rng(rng=None):
     return rng
 
 
-def random_boxes(num=1, scale=1, rng=None):
+def random_boxes(num: int = 1, scale: int = 1, rng: int | np.random.RandomState | None = None) -> torch.Tensor:
     """Simple version of ``kwimage.Boxes.random``
 
     Returns:
@@ -536,7 +540,8 @@ class BestMetricSingle:
 
 
 class BestMetricHolder:
-    def __init__(self, init_res=0.0, better="large", use_ema=False) -> None:
+    def __init__(self, init_res: float = 0.0, better: str = "large", use_ema: bool = False) -> None:
+        """Initializes an object with BestMetricSingle instances based on the provided initial result, comparison method, and whether to use exponential moving average."""
         self.best_all = BestMetricSingle(init_res, better)
         self.use_ema = use_ema
         if use_ema:
@@ -596,9 +601,8 @@ def targets_to(targets: List[Dict[str, Any]], device):
     ]
 
 
-def get_phrases_from_posmap(
-    posmap: torch.BoolTensor, tokenized: Dict, tokenizer: AutoTokenizer
-):
+def get_phrases_from_posmap(posmap: torch.Tensor, tokenized: dict, tokenizer: AutoTokenizer) -> str:
+    """Decodes tokenized phrases based on non-zero indices from a torch.Tensor posmap using the provided AutoTokenizer. It ensures posmap is 1-dimensional and raises an error otherwise."""
     assert isinstance(posmap, torch.Tensor), "posmap must be torch.Tensor"
     if posmap.dim() == 1:
         non_zero_idx = posmap.nonzero(as_tuple=True)[0].tolist()

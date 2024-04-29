@@ -16,16 +16,16 @@ from segment_anything.modeling.common import LayerNorm2d
 
 class MaskDecoderHQ(nn.Module):
     def __init__(
-        self,
-        *,
-        transformer_dim: int,
-        transformer: nn.Module,
-        num_multimask_outputs: int = 3,
-        activation: Type[nn.Module] = nn.GELU,
-        iou_head_depth: int = 3,
-        iou_head_hidden_dim: int = 256,
-        vit_dim: int = 1024,
-    ) -> None:
+            self,
+            *,
+            transformer_dim: int,
+            transformer: nn.Module,
+            num_multimask_outputs: int = 3,
+            activation: Type[nn.Module] = nn.GELU,
+            iou_head_depth: int = 3,
+            iou_head_hidden_dim: int = 256,
+            vit_dim: int = 1024,
+        ) -> None:
         """
         Predicts masks given an image and prompt embeddings, using a
         transformer architecture.

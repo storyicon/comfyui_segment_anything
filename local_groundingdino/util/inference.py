@@ -19,13 +19,15 @@ from local_groundingdino.util.utils import get_phrases_from_posmap
 
 
 def preprocess_caption(caption: str) -> str:
+    """Processes a caption by converting it to lowercase, stripping leading and trailing whitespaces, and ensuring it ends with a period."""
     result = caption.lower().strip()
     if result.endswith("."):
         return result
     return result + "."
 
 
-def load_model(model_config_path: str, model_checkpoint_path: str, device: str = "cuda"):
+def load_model(model_config_path: str, model_checkpoint_path: str, device: str = "cuda") -> torch.nn.Module:
+    """Loads a model using configuration settings from a file, applies the specified device, builds the model based on the settings, loads the model checkpoint, cleans the state dictionary keys, sets the model to evaluation mode, and returns the loaded model."""
     args = SLConfig.fromfile(model_config_path)
     args.device = device
     model = build_model(args)
@@ -35,7 +37,8 @@ def load_model(model_config_path: str, model_checkpoint_path: str, device: str =
     return model
 
 
-def load_image(image_path: str) -> Tuple[np.array, torch.Tensor]:
+def load_image(image_path: str) -> tuple[numpy.ndarray, torch.Tensor]:
+    """Loads an image from the specified path, applies a series of transformations including resizing, converting to a tensor, and normalization, returning the original image as a NumPy array and the transformed image as a PyTorch tensor."""
     transform = T.Compose(
         [
             T.RandomResize([800], max_size=1333),
@@ -50,13 +53,14 @@ def load_image(image_path: str) -> Tuple[np.array, torch.Tensor]:
 
 
 def predict(
-        model,
+        model: torch.nn.Module,
         image: torch.Tensor,
         caption: str,
         box_threshold: float,
         text_threshold: float,
         device: str = "cuda"
-) -> Tuple[torch.Tensor, torch.Tensor, List[str]]:
+    ) -> tuple[torch.Tensor, torch.Tensor, list[str]]:
+    """Processes an image and a caption using a provided model to predict bounding boxes and associated phrases. It preprocesses the caption, moves the model and image to the specified device, generates predictions, filters based on thresholds, tokenizes the caption, and retrieves phrases based on logits exceeding a text threshold."""
     caption = preprocess_caption(caption=caption)
 
     model = model.to(device)
@@ -110,11 +114,12 @@ def annotate(image_source: np.ndarray, boxes: torch.Tensor, logits: torch.Tensor
 class Model:
 
     def __init__(
-        self,
-        model_config_path: str,
-        model_checkpoint_path: str,
-        device: str = "cuda"
-    ):
+            self,
+            model_config_path: str,
+            model_checkpoint_path: str,
+            device: str = "cuda"
+        ) -> None:
+        """Loads a model using configuration settings from a file, applies the specified device, builds the model based on the settings, loads the model checkpoint, cleans the state dictionary keys, sets the model to evaluation mode, and returns the loaded model."""
         self.model = load_model(
             model_config_path=model_config_path,
             model_checkpoint_path=model_checkpoint_path,
@@ -123,12 +128,12 @@ class Model:
         self.device = device
 
     def predict_with_caption(
-        self,
-        image: np.ndarray,
-        caption: str,
-        box_threshold: float = 0.35,
-        text_threshold: float = 0.25
-    ) -> Tuple[sv.Detections, List[str]]:
+            self,
+            image: np.ndarray,
+            caption: str,
+            box_threshold: float,
+            text_threshold: float
+        ) -> tuple[sv.Detections, list[str]]:
         """
         import cv2
 
@@ -164,12 +169,12 @@ class Model:
         return detections, phrases
 
     def predict_with_classes(
-        self,
-        image: np.ndarray,
-        classes: List[str],
-        box_threshold: float,
-        text_threshold: float
-    ) -> sv.Detections:
+            self,
+            image: np.ndarray,
+            classes: list[str],
+            box_threshold: float,
+            text_threshold: float
+        ) -> sv.Detections:
         """
         import cv2
 
@@ -210,6 +215,7 @@ class Model:
 
     @staticmethod
     def preprocess_image(image_bgr: np.ndarray) -> torch.Tensor:
+        """Preprocesses a BGR image represented as a NumPy array by converting it to a PyTorch tensor after applying a series of transformations including resizing, converting color space, normalization, and tensor conversion."""
         transform = T.Compose(
             [
                 T.RandomResize([800], max_size=1333),
@@ -222,19 +228,16 @@ class Model:
         return image_transformed
 
     @staticmethod
-    def post_process_result(
-            source_h: int,
-            source_w: int,
-            boxes: torch.Tensor,
-            logits: torch.Tensor
-    ) -> sv.Detections:
+    def post_process_result(source_h: int, source_w: int, boxes: torch.Tensor, logits: torch.Tensor) -> sv.Detections:
+        """Processes bounding boxes and confidence logits to create a Detections object containing converted bounding box coordinates and confidence scores."""
         boxes = boxes * torch.Tensor([source_w, source_h, source_w, source_h])
         xyxy = box_convert(boxes=boxes, in_fmt="cxcywh", out_fmt="xyxy").numpy()
         confidence = logits.numpy()
         return sv.Detections(xyxy=xyxy, confidence=confidence)
 
     @staticmethod
-    def phrases2classes(phrases: List[str], classes: List[str]) -> np.ndarray:
+    def phrases2classes(phrases: list[str], classes: list[str]) -> np.ndarray:
+        """Converts a list of phrases to corresponding class IDs based on a list of classes, returning a NumPy array of the class IDs. Handles cases where a phrase is not found in the classes list by assigning None."""
         class_ids = []
         for phrase in phrases:
             try:

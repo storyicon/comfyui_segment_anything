@@ -217,7 +217,7 @@ def generate_masks_with_special_tokens(tokenized, special_tokens_list, tokenizer
     return attention_mask, position_ids.to(torch.long)
 
 
-def generate_masks_with_special_tokens_and_transfer_map(tokenized, special_tokens_list, tokenizer):
+def generate_masks_with_special_tokens_and_transfer_map(tokenized: dict[str, torch.Tensor], special_tokens_list: list[int], tokenizer: Any) -> tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]:
     """Generate attention mask between each pair of special tokens
     Args:
         input_ids (torch.Tensor): input ids. Shape: [bs, num_token]

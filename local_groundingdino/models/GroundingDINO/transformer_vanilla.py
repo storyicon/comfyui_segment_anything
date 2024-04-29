@@ -26,7 +26,8 @@ from .utils import (
 
 
 class TextTransformer(nn.Module):
-    def __init__(self, num_layers, d_model=256, nheads=8, dim_feedforward=2048, dropout=0.1):
+    def __init__(self, num_layers: int, d_model: int = 256, nheads: int = 8, dim_feedforward: int = 2048, dropout: float = 0.1) -> None:
+        """Initializes a Transformer model with a specified number of layers, model dimensions, number of heads, feedforward dimension, and dropout. It creates multiple encoder layers using the provided parameters and clones them based on the number of layers specified."""
         super().__init__()
         self.num_layers = num_layers
         self.d_model = d_model
@@ -66,14 +67,15 @@ class TextTransformer(nn.Module):
 
 class TransformerEncoderLayer(nn.Module):
     def __init__(
-        self,
-        d_model,
-        nhead,
-        dim_feedforward=2048,
-        dropout=0.1,
-        activation="relu",
-        normalize_before=False,
-    ):
+            self,
+            d_model: int,
+            nhead: int,
+            dim_feedforward: int = 2048,
+            dropout: float = 0.1,
+            activation: str = "relu",
+            normalize_before: bool = False,
+        ) -> None:
+        """Initialize a transformer block with multi-head attention, feedforward layers, and normalization. The activation function is determined based on the input string, defaulting to ReLU if not specified."""
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         # Implementation of Feedforward model

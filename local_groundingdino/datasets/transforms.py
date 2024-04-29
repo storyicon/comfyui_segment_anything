@@ -14,7 +14,8 @@ from local_groundingdino.util.box_ops import box_xyxy_to_cxcywh
 from local_groundingdino.util.misc import interpolate
 
 
-def crop(image, target, region):
+def crop(image: torch.Tensor, target: dict[str, torch.Tensor], region: tuple[int, int, int, int]) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    """Crops an image and its associated target data based on the specified region coordinates, updating the target fields accordingly. Returns the cropped image and modified target data. Handles cases where boxes or masks have zero area by removing corresponding elements."""
     cropped_image = F.crop(image, *region)
 
     target = target.copy()
@@ -65,7 +66,8 @@ def crop(image, target, region):
     return cropped_image, target
 
 
-def hflip(image, target):
+def hflip(image: Image.Image, target: dict[str, Any]) -> tuple[Image.Image, dict[str, Any]]:
+    """Flips the input image horizontally and adjusts the target dictionary accordingly by flipping bounding boxes and masks if present. Returns the flipped image and the modified target dictionary."""
     flipped_image = F.hflip(image)
 
     w, h = image.size
@@ -84,7 +86,8 @@ def hflip(image, target):
     return flipped_image, target
 
 
-def resize(image, target, size, max_size=None):
+def resize(image: Image.Image, target: dict[str, Union[torch.Tensor, Any]], size: Union[int, tuple[int, int]], max_size: int | None) -> tuple[Image.Image, dict[str, Union[torch.Tensor, Any]]]:
+    """Resizes an image with optional target information, adjusting bounding boxes, areas, and masks accordingly. Handles aspect ratio preservation and scaling based on specified size or maximum size, returning the resized image and updated target information."""
     # size can be min_size (scalar) or (w, h) tuple
 
     def get_size_with_aspect_ratio(image_size, size, max_size=None):
@@ -146,7 +149,8 @@ def resize(image, target, size, max_size=None):
     return rescaled_image, target
 
 
-def pad(image, target, padding):
+def pad(image: torch.Tensor, target: dict[str, any] | None, padding: tuple[int, int]) -> tuple[torch.Tensor, dict[str, any] | None]:
+    """Pads the input image and target dictionary with the specified padding values, updating the target size and masks if present."""
     # assumes that we only pad on the bottom right corners
     padded_image = F.pad(image, (0, 0, padding[0], padding[1]))
     if target is None:
@@ -163,7 +167,8 @@ class ResizeDebug(object):
     def __init__(self, size):
         self.size = size
 
-    def __call__(self, img, target):
+    def __call__(self, img: Image.Image, target: dict[str, int | torch.Tensor | Any]) -> tuple[Image.Image, dict[str, int | torch.Tensor | Any]]:
+        """Resizes an image with optional target information, adjusting bounding boxes, areas, and masks accordingly. Handles aspect ratio preservation and scaling based on specified size or maximum size, returning the resized image and updated target information."""
         return resize(img, target, self.size)
 
 
@@ -171,7 +176,8 @@ class RandomCrop(object):
     def __init__(self, size):
         self.size = size
 
-    def __call__(self, img, target):
+    def __call__(self, img: torch.Tensor, target: dict[str, torch.Tensor]) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """Crops an image and its associated target data based on the specified region coordinates, updating the target fields accordingly. Returns the cropped image and modified target data. Handles cases where boxes or masks have zero area by removing corresponding elements."""
         region = T.RandomCrop.get_params(img, self.size)
         return crop(img, target, region)
 
@@ -184,7 +190,8 @@ class RandomSizeCrop(object):
         self.max_size = max_size
         self.respect_boxes = respect_boxes
 
-    def __call__(self, img: PIL.Image.Image, target: dict):
+    def crop(image: torch.Tensor, target: dict[str, torch.Tensor], region: tuple[int, int, int, int]) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """Crops an image and its associated target data based on the specified region coordinates, updating the target fields accordingly. Returns the cropped image and modified target data. Handles cases where boxes or masks have zero area by removing corresponding elements."""
         init_boxes = len(target["boxes"])
         max_patience = 10
         for i in range(max_patience):
@@ -205,7 +212,8 @@ class CenterCrop(object):
     def __init__(self, size):
         self.size = size
 
-    def __call__(self, img, target):
+    def __call__(self, img: Image.Image, target: dict[str, torch.Tensor]) -> tuple[Image.Image, dict[str, torch.Tensor]]:
+        """Crops an image and its associated target data based on the specified region coordinates, updating the target fields accordingly. Returns the cropped image and modified target data. Handles cases where boxes or masks have zero area by removing corresponding elements."""
         image_width, image_height = img.size
         crop_height, crop_width = self.size
         crop_top = int(round((image_height - crop_height) / 2.0))
@@ -217,7 +225,8 @@ class RandomHorizontalFlip(object):
     def __init__(self, p=0.5):
         self.p = p
 
-    def __call__(self, img, target):
+    def __call__(self, img: Image.Image, target: dict[str, Any]) -> tuple[Image.Image, dict[str, Any]]:
+        """Flips the input image horizontally and adjusts the target dictionary accordingly by flipping bounding boxes and masks if present. Returns the flipped image and the modified target dictionary."""
         if random.random() < self.p:
             return hflip(img, target)
         return img, target
@@ -229,7 +238,8 @@ class RandomResize(object):
         self.sizes = sizes
         self.max_size = max_size
 
-    def __call__(self, img, target=None):
+    def __call__(self, img: Image.Image, target: dict[str, torch.Tensor | Any] | None) -> tuple[Image.Image, dict[str, torch.Tensor | Any]]:
+        """Resizes an image with optional target information, adjusting bounding boxes, areas, and masks accordingly. Handles aspect ratio preservation and scaling based on specified size or maximum size, returning the resized image and updated target information."""
         size = random.choice(self.sizes)
         return resize(img, target, size, self.max_size)
 
@@ -238,7 +248,8 @@ class RandomPad(object):
     def __init__(self, max_pad):
         self.max_pad = max_pad
 
-    def __call__(self, img, target):
+    def __call__(self, img: torch.Tensor, target: dict[str, any] | None) -> tuple[torch.Tensor, dict[str, any] | None]:
+        """Pads the input image and target dictionary with the specified padding values, updating the target size and masks if present."""
         pad_x = random.randint(0, self.max_pad)
         pad_y = random.randint(0, self.max_pad)
         return pad(img, target, (pad_x, pad_y))
@@ -279,7 +290,8 @@ class Normalize(object):
         self.mean = mean
         self.std = std
 
-    def __call__(self, image, target=None):
+    def __call__(self, image: torch.tensor, target: dict[str, torch.tensor] | None) -> tuple[torch.tensor, dict[str, torch.tensor] | None]:
+        """Normalizes an image using mean and standard deviation, converts bounding box coordinates from (x0, y0, x1, y1) format to (center_x, center_y, width, height) format using a torch tensor, and returns the normalized image and updated target dictionary with converted bounding box coordinates. If the target is None, returns the normalized image and None."""
         image = F.normalize(image, mean=self.mean, std=self.std)
         if target is None:
             return image, None

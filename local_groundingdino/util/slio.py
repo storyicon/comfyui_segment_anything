@@ -99,7 +99,7 @@ file_handlers = {
 # ===========================
 
 
-def is_str(x):
+def is_str(x: object) -> bool:
     """Whether the input is an string instance.
 
     Note: This method is deprecated since python 2 is no longer supported.
@@ -107,7 +107,7 @@ def is_str(x):
     return isinstance(x, str)
 
 
-def slload(file, file_format=None, **kwargs):
+def slload(file: str | Path | IO, file_format: str | None = None, **kwargs: Any) -> Any:
     """Load data from json/yaml/pickle files.
 
     This method provides a unified api for loading data from serialized files.
@@ -140,7 +140,7 @@ def slload(file, file_format=None, **kwargs):
     return obj
 
 
-def sldump(obj, file=None, file_format=None, **kwargs):
+def sldump(obj: object, file: str | Path | IO[str] | None = None, file_format: str | None = None, **kwargs: Any) -> bool:
     """Dump data to json/yaml/pickle strings or files.
 
     This method provides a unified api for dumping data as strings or to files,

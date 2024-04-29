@@ -48,7 +48,7 @@ class SmoothedValue(object):
         self.count += n
         self.total += value * n
 
-    def synchronize_between_processes(self):
+    def synchronize_between_processes(self) -> None:
         """
         Warning: does not synchronize the deque!
         """
@@ -100,7 +100,7 @@ class SmoothedValue(object):
 
 
 @functools.lru_cache()
-def _get_global_gloo_group():
+def _get_global_gloo_group() -> dist.ProcessGroup:
     """
     Return a process group based on gloo backend, containing all the ranks
     The result is cached.
@@ -112,7 +112,7 @@ def _get_global_gloo_group():
     return dist.group.WORLD
 
 
-def all_gather_cpu(data):
+def all_gather_cpu(data: Any) -> list[Any]:
     """
     Run all_gather on arbitrary picklable data (not necessarily tensors)
     Args:
@@ -170,7 +170,7 @@ def all_gather_cpu(data):
     return data_list
 
 
-def all_gather(data):
+def all_gather(data: Any) -> list[Any]:
     """
     Run all_gather on arbitrary picklable data (not necessarily tensors)
     Args:
@@ -217,7 +217,7 @@ def all_gather(data):
     return data_list
 
 
-def reduce_dict(input_dict, average=True):
+def reduce_dict(input_dict: dict[str, torch.Tensor], average: bool = True) -> dict[str, torch.Tensor]:
     """
     Args:
         input_dict (dict): all the values will be reduced
@@ -279,7 +279,8 @@ class MetricLogger(object):
     def add_meter(self, name, meter):
         self.meters[name] = meter
 
-    def log_every(self, iterable, print_freq, header=None, logger=None):
+    def log_every(self, iterable: Iterable, print_freq: int, header: str | None = None, logger: Optional[Logger] = None) -> Generator[Any, None, None]:
+        """Logs progress and timing information for an iterable, yielding objects from the iterable. It calculates and displays various metrics such as elapsed time, data processing time, and memory usage if available."""
         if logger is None:
             print_func = print
         else:
@@ -380,14 +381,16 @@ def get_sha():
     return message
 
 
-def collate_fn(batch):
+def collate_fn(batch: list[Tensor]) -> tuple[NestedTensor, ...]:
+    """Collates a batch of Tensors by creating a NestedTensor from the input list of Tensors, handling padding and stacking operations. The function returns a tuple of NestedTensors after processing the input batch."""
     # import ipdb; ipdb.set_trace()
     batch = list(zip(*batch))
     batch[0] = nested_tensor_from_tensor_list(batch[0])
     return tuple(batch)
 
 
-def _max_by_axis(the_list):
+def _max_by_axis(the_list: list[list[int]]) -> list[int]:
+    """Finds the maximum value by axis in a list of lists of integers and returns a list of those maximum values."""
     # type: (List[List[int]]) -> List[int]
     maxes = the_list[0]
     for sublist in the_list[1:]:
@@ -422,7 +425,8 @@ class NestedTensor(object):
             res.append(torch.Tensor([maxH, maxW]))
         return res
 
-    def to(self, device):
+    def to(self, device: Device) -> NestedTensor:
+        """Casts the tensors and mask of a NestedTensor to the specified device and returns the result."""
         # type: (Device) -> NestedTensor # noqa
         cast_tensor = self.tensors.to(device)
         mask = self.mask
@@ -471,7 +475,8 @@ class NestedTensor(object):
         return {"tensors.shape": self.tensors.shape, "mask.shape": self.mask.shape}
 
 
-def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
+def nested_tensor_from_tensor_list(tensor_list: list[Tensor]) -> NestedTensor:
+    """Creates a NestedTensor from a list of Tensors by padding and stacking them, returning the resulting NestedTensor. It handles different scenarios based on the dimensions of the input Tensors and supports specific operations for 3-dimensional Tensors."""
     # TODO make this more general
     if tensor_list[0].ndim == 3:
         if torchvision._is_tracing():
@@ -499,7 +504,8 @@ def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
 # _onnx_nested_tensor_from_tensor_list() is an implementation of
 # nested_tensor_from_tensor_list() that is supported by ONNX tracing.
 @torch.jit.unused
-def _onnx_nested_tensor_from_tensor_list(tensor_list: List[Tensor]) -> NestedTensor:
+def _onnx_nested_tensor_from_tensor_list(tensor_list: list[Tensor]) -> NestedTensor:
+    """Creates a NestedTensor from a list of Tensors by padding and stacking them, returning the resulting NestedTensor."""
     max_size = []
     for i in range(tensor_list[0].dim()):
         max_size_i = torch.max(
@@ -529,7 +535,7 @@ def _onnx_nested_tensor_from_tensor_list(tensor_list: List[Tensor]) -> NestedTen
     return NestedTensor(tensor, mask=mask)
 
 
-def setup_for_distributed(is_master):
+def setup_for_distributed(is_master: bool) -> None:
     """
     This function disables printing when not in master process
     """
@@ -545,7 +551,8 @@ def setup_for_distributed(is_master):
     __builtin__.print = print
 
 
-def is_dist_avail_and_initialized():
+def is_dist_avail_and_initialized() -> bool:
+    """Checks if distributed training is available and initialized using PyTorch. Returns a boolean indicating the status."""
     if not dist.is_available():
         return False
     if not dist.is_initialized():
@@ -553,28 +560,33 @@ def is_dist_avail_and_initialized():
     return True
 
 
-def get_world_size():
+def get_world_size() -> int:
+    """Returns the world size for distributed training if available and initialized, otherwise returns 1."""
     if not is_dist_avail_and_initialized():
         return 1
     return dist.get_world_size()
 
 
-def get_rank():
+def get_rank() -> int:
+    """Checks if distributed training is available and initialized using PyTorch. Returns a boolean indicating the status."""
     if not is_dist_avail_and_initialized():
         return 0
     return dist.get_rank()
 
 
-def is_main_process():
+def is_main_process() -> bool:
+    """Checks if the current process is the main process in a distributed training setup by comparing the rank with 0. Returns a boolean indicating the result."""
     return get_rank() == 0
 
 
-def save_on_master(*args, **kwargs):
+def save_on_master(*args, **kwargs) -> None:
+    """Saves the provided arguments using torch.save if the current process is the main process in a distributed training setup."""
     if is_main_process():
         torch.save(*args, **kwargs)
 
 
-def init_distributed_mode(args):
+def init_distributed_mode(args: dict[str, str]) -> None:
+    """Disables printing when not in the master process"""
     if "WORLD_SIZE" in os.environ and os.environ["WORLD_SIZE"] != "":  # 'RANK' in os.environ and
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ["WORLD_SIZE"])
@@ -666,7 +678,7 @@ def accuracy_onehot(pred, gt):
     return acc
 
 
-def interpolate(input, size=None, scale_factor=None, mode="nearest", align_corners=None):
+def interpolate(input: torch.Tensor, size: list[int] | None, scale_factor: float | None, mode: str, align_corners: bool | None) -> torch.Tensor:
     # type: (Tensor, Optional[List[int]], Optional[float], str, Optional[bool]) -> Tensor
     """
     Equivalent to nn.functional.interpolate, but with support for empty batch sizes.
@@ -701,14 +713,16 @@ class color_sys:
         return self.colors[idx]
 
 
-def inverse_sigmoid(x, eps=1e-3):
+def inverse_sigmoid(x: torch.Tensor, eps: float = 1e-3) -> torch.Tensor:
+    """Calculates the inverse of the sigmoid function for input values within the range [0, 1] while avoiding division by zero issues."""
     x = x.clamp(min=0, max=1)
     x1 = x.clamp(min=eps)
     x2 = (1 - x).clamp(min=eps)
     return torch.log(x1 / x2)
 
 
-def clean_state_dict(state_dict):
+def clean_state_dict(state_dict: dict[str, Any]) -> dict[str, Any]:
+    """Removes the prefix "module." from keys in the input dictionary and returns a new dictionary with the modified keys."""
     new_state_dict = OrderedDict()
     for k, v in state_dict.items():
         if k[:7] == "module.":

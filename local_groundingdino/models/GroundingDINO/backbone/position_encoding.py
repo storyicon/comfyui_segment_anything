@@ -168,7 +168,8 @@ class PositionEmbeddingLearned(nn.Module):
         return pos
 
 
-def build_position_encoding(args):
+def build_position_encoding(args: dict[str, int | str]) -> PositionEmbeddingSineHW | PositionEmbeddingLearned:
+    """Builds a position encoding based on the provided arguments, either using a Sine position embedding or a learned position embedding, and returns the constructed position embedding."""
     N_steps = args.hidden_dim // 2
     if args.position_embedding in ("v2", "sine"):
         # TODO find a better way of exposing other arguments

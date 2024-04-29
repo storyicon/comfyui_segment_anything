@@ -104,7 +104,8 @@ class BackboneBase(nn.Module):
         self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
         self.num_channels = num_channels
 
-    def forward(self, tensor_list: NestedTensor):
+    def forward(self, tensor_list: local_groundingdino.util.misc.NestedTensor) -> dict[str, local_groundingdino.util.misc.NestedTensor]:
+        """Processes a NestedTensor input through a neural network body, interpolates the mask, and returns a dictionary of NestedTensor outputs with corresponding masks."""
         xs = self.body(tensor_list.tensors)
         out: Dict[str, NestedTensor] = {}
         for name, x in xs.items():
@@ -120,13 +121,14 @@ class Backbone(BackboneBase):
     """ResNet backbone with frozen BatchNorm."""
 
     def __init__(
-        self,
-        name: str,
-        train_backbone: bool,
-        dilation: bool,
-        return_interm_indices: list,
-        batch_norm=FrozenBatchNorm2d,
-    ):
+            self,
+            name: str,
+            train_backbone: bool,
+            dilation: bool,
+            return_interm_indices: list[int],
+            batch_norm: type(FrozenBatchNorm2d),
+        ) -> None:
+        """Initializes a backbone model for object detection based on the specified name, with options for training the backbone, adjusting dilation, returning intermediate indices, and using batch normalization. It handles different backbone models like ResNet18, ResNet34, ResNet50, and ResNet101. The function ensures the correct setup based on the input parameters and raises an error for unsupported configurations."""
         if name in ["resnet18", "resnet34", "resnet50", "resnet101"]:
             backbone = getattr(torchvision.models, name)(
                 replace_stride_with_dilation=[False, False, dilation],
@@ -159,7 +161,7 @@ class Joiner(nn.Sequential):
         return out, pos
 
 
-def build_backbone(args):
+def build_backbone(args: dict[str, int | str]) -> Joiner:
     """
     Useful args:
         - backbone: backbone name

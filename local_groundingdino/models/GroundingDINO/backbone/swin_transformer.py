@@ -44,7 +44,7 @@ class Mlp(nn.Module):
         return x
 
 
-def window_partition(x, window_size):
+def window_partition(x: torch.Tensor, window_size: int) -> torch.Tensor:
     """
     Args:
         x: (B, H, W, C)
@@ -58,7 +58,7 @@ def window_partition(x, window_size):
     return windows
 
 
-def window_reverse(windows, window_size, H, W):
+def window_reverse(windows: np.ndarray, window_size: int, H: int, W: int) -> np.ndarray:
     """
     Args:
         windows: (num_windows*B, window_size, window_size, C)
@@ -235,7 +235,7 @@ class SwinTransformerBlock(nn.Module):
         self.H = None
         self.W = None
 
-    def forward(self, x, mask_matrix):
+    def forward(self, x: torch.Tensor, mask_matrix: torch.Tensor) -> torch.Tensor:
         """Forward function.
         Args:
             x: Input feature, tensor size (B, H*W, C).
@@ -406,7 +406,7 @@ class BasicLayer(nn.Module):
         else:
             self.downsample = None
 
-    def forward(self, x, H, W):
+    def forward(self, x: torch.Tensor, H: int, W: int) -> Tuple[torch.Tensor, int, int, torch.Tensor, int, int]:
         """Forward function.
         Args:
             x: Input feature, tensor size (B, H*W, C).
@@ -528,28 +528,29 @@ class SwinTransformer(nn.Module):
     """
 
     def __init__(
-        self,
-        pretrain_img_size=224,
-        patch_size=4,
-        in_chans=3,
-        embed_dim=96,
-        depths=[2, 2, 6, 2],
-        num_heads=[3, 6, 12, 24],
-        window_size=7,
-        mlp_ratio=4.0,
-        qkv_bias=True,
-        qk_scale=None,
-        drop_rate=0.0,
-        attn_drop_rate=0.0,
-        drop_path_rate=0.2,
-        norm_layer=nn.LayerNorm,
-        ape=False,
-        patch_norm=True,
-        out_indices=(0, 1, 2, 3),
-        frozen_stages=-1,
-        dilation=False,
-        use_checkpoint=False,
-    ):
+            self,
+            pretrain_img_size: int = 224,
+            patch_size: int = 4,
+            in_chans: int = 3,
+            embed_dim: int = 96,
+            depths: list[int] = [2, 2, 6, 2],
+            num_heads: list[int] = [3, 6, 12, 24],
+            window_size: int = 7,
+            mlp_ratio: float = 4.0,
+            qkv_bias: bool = True,
+            qk_scale: None | float = None,
+            drop_rate: float = 0.0,
+            attn_drop_rate: float = 0.0,
+            drop_path_rate: float = 0.2,
+            norm_layer: nn.LayerNorm,
+            ape: bool = False,
+            patch_norm: bool = True,
+            out_indices: tuple[int, int, int, int] = (0, 1, 2, 3),
+            frozen_stages: int = -1,
+            dilation: bool = False,
+            use_checkpoint: bool = False,
+        ) -> None:
+        """Initializes a Vision Transformer model with customizable parameters such as patch size, embedding dimensions, depths, and number of heads. Handles patch embedding, absolute position embedding, dropout, stochastic depth, and building layers with optional downsampling. Also includes freezing stages and dilation settings."""
         super().__init__()
 
         self.pretrain_img_size = pretrain_img_size
@@ -709,7 +710,8 @@ class SwinTransformer(nn.Module):
         #       torch.Size([2, 768, 64, 64]), torch.Size([2, 1536, 32, 32])]
         return tuple(outs)
 
-    def forward(self, tensor_list: NestedTensor):
+    def forward(self, tensor_list: NestedTensor) -> dict[int, NestedTensor]:
+        """Processes a NestedTensor input through a series of operations including patch embedding, position embedding interpolation, layer processing, and normalization. Returns a dictionary mapping layer indices to NestedTensor outputs."""
         x = tensor_list.tensors
 
         """Forward function."""
@@ -759,7 +761,8 @@ class SwinTransformer(nn.Module):
         self._freeze_stages()
 
 
-def build_swin_transformer(modelname, pretrain_img_size, **kw):
+def build_swin_transformer(modelname: str, pretrain_img_size: int, **kw: dict[str, int]) -> SwinTransformer:
+    """Builds a Swin Transformer model based on the specified model name, pretrain image size, and additional keyword arguments. The function validates the model name, retrieves the corresponding model parameters, updates them with any additional keyword arguments, and instantiates a Swin Transformer model with the specified parameters. Returns the constructed Swin Transformer model."""
     assert modelname in [
         "swin_T_224_1k",
         "swin_B_224_22k",

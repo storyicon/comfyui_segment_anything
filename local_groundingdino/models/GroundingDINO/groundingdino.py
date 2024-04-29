@@ -42,29 +42,28 @@ class GroundingDINO(nn.Module):
     """This is the Cross-Attention Detector module that performs object detection"""
 
     def __init__(
-        self,
-        backbone,
-        transformer,
-        num_queries,
-        aux_loss=False,
-        iter_update=False,
-        query_dim=2,
-        num_feature_levels=1,
-        nheads=8,
-        # two stage
-        two_stage_type="no",  # ['no', 'standard']
-        dec_pred_bbox_embed_share=True,
-        two_stage_class_embed_share=True,
-        two_stage_bbox_embed_share=True,
-        num_patterns=0,
-        dn_number=100,
-        dn_box_noise_scale=0.4,
-        dn_label_noise_ratio=0.5,
-        dn_labelbook_size=100,
-        text_encoder_type="bert-base-uncased",
-        sub_sentence_present=True,
-        max_text_len=256,
-    ):
+            self,
+            backbone: Module,
+            transformer: Module,
+            num_queries: int,
+            aux_loss: bool = False,
+            iter_update: bool = False,
+            query_dim: int = 2,
+            num_feature_levels: int = 1,
+            nheads: int = 8,
+            two_stage_type: str = "no",
+            dec_pred_bbox_embed_share: bool = True,
+            two_stage_class_embed_share: bool = True,
+            two_stage_bbox_embed_share: bool = True,
+            num_patterns: int = 0,
+            dn_number: int = 100,
+            dn_box_noise_scale: float = 0.4,
+            dn_label_noise_ratio: float = 0.5,
+            dn_labelbook_size: int = 100,
+            text_encoder_type: str = "bert-base-uncased",
+            sub_sentence_present: bool = True,
+            max_text_len: int = 256,
+        ) -> None:
         """Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -199,7 +198,7 @@ class GroundingDINO(nn.Module):
     def init_ref_points(self, use_num_queries):
         self.refpoint_embed = nn.Embedding(use_num_queries, self.query_dim)
 
-    def forward(self, samples: NestedTensor, targets: List = None, **kw):
+    def forward(self, samples: list[torch.Tensor] | NestedTensor, targets: list[dict[str, Any]] | None = None, **kw: Any) -> dict[str, torch.Tensor]:
         """The forward expects a NestedTensor, which consists of:
            - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
            - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
@@ -350,7 +349,8 @@ class GroundingDINO(nn.Module):
 
 
 @MODULE_BUILD_FUNCS.registe_with_name(module_name="groundingdino")
-def build_groundingdino(args):
+def build_groundingdino(args: dict) -> GroundingDINO:
+    """Builds a GroundingDINO model using the provided arguments, including a backbone and a transformer model. It initializes the GroundingDINO object with various configuration options such as the number of queries, number of feature levels, number of heads, and other settings specific to the model. The function returns the initialized GroundingDINO model."""
 
     backbone = build_backbone(args)
     transformer = build_transformer(args)

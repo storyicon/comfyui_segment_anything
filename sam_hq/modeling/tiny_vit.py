@@ -55,7 +55,8 @@ class DropPath(TimmDropPath):
 
 
 class PatchEmbed(nn.Module):
-    def __init__(self, in_chans, embed_dim, resolution, activation):
+    def __init__(self, in_chans: int, embed_dim: int, resolution: tuple[int, int], activation: Callable[[], Any]) -> None:
+        """Initializes a neural network module with convolutional layers and batch normalization. It calculates the number of patches based on the input resolution and embeds them into a lower-dimensional space defined by the embed_dim parameter."""
         super().__init__()
         img_size: Tuple[int, int] = to_2tuple(resolution)
         self.patches_resolution = (img_size[0] // 4, img_size[1] // 4)
@@ -75,8 +76,9 @@ class PatchEmbed(nn.Module):
 
 
 class MBConv(nn.Module):
-    def __init__(self, in_chans, out_chans, expand_ratio,
-                 activation, drop_path):
+    def __init__(self, in_chans: int, out_chans: int, expand_ratio: float,
+                     activation: Callable[[], Any], drop_path: float | None) -> None:
+        """Initializes a neural network module with specified input and output channels, expand ratio, activation function, and optional drop path. Sets up convolutional layers with batch normalization and activation functions based on the provided parameters."""
         super().__init__()
         self.in_chans = in_chans
         self.hidden_chans = int(in_chans * expand_ratio)
@@ -116,7 +118,8 @@ class MBConv(nn.Module):
 
 
 class PatchMerging(nn.Module):
-    def __init__(self, input_resolution, dim, out_dim, activation):
+    def __init__(self, input_resolution: int, dim: int, out_dim: int, activation: Callable) -> None:
+        """Initializes a neural network layer with convolutional operations and batch normalization. Stores input resolution, dimensions, output dimensions, and activation function. Configures convolutional layers with specific parameters based on output dimension."""
         super().__init__()
 
         self.input_resolution = input_resolution
@@ -148,12 +151,8 @@ class PatchMerging(nn.Module):
 
 
 class ConvLayer(nn.Module):
-    def __init__(self, dim, input_resolution, depth,
-                 activation,
-                 drop_path=0., downsample=None, use_checkpoint=False,
-                 out_dim=None,
-                 conv_expand_ratio=4.,
-                 ):
+    def __init__(self, dim: int, input_resolution: int, depth: int, activation: Any, drop_path: float | list[float] = 0., downsample: Any | None = None, use_checkpoint: bool = False, out_dim: int | None = None, conv_expand_ratio: float = 4.) -> None:
+        """Initializes a neural network module with specified parameters, builds blocks using MBConv, and creates a downsample layer if provided."""
 
         super().__init__()
         self.dim = dim
@@ -298,11 +297,8 @@ class TinyViTBlock(nn.Module):
         activation: the activation function. Default: nn.GELU
     """
 
-    def __init__(self, dim, input_resolution, num_heads, window_size=7,
-                 mlp_ratio=4., drop=0., drop_path=0.,
-                 local_conv_size=3,
-                 activation=nn.GELU,
-                 ):
+    def __init__(self, dim: int, input_resolution: int, num_heads: int, window_size: int = 7, mlp_ratio: float = 4.0, drop: float = 0.0, drop_path: float = 0.0, local_conv_size: int = 3, activation: nn.GELU) -> None:
+        """Initializes a transformer block with attention mechanism, multi-layer perceptron, and local convolution operations. It sets up parameters such as dimension, input resolution, number of heads, window size, and activation function."""
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
@@ -397,13 +393,8 @@ class BasicLayer(nn.Module):
         out_dim: the output dimension of the layer. Default: dim
     """
 
-    def __init__(self, dim, input_resolution, depth, num_heads, window_size,
-                 mlp_ratio=4., drop=0.,
-                 drop_path=0., downsample=None, use_checkpoint=False,
-                 local_conv_size=3,
-                 activation=nn.GELU,
-                 out_dim=None,
-                 ):
+    def __init__(self, dim: int, input_resolution: int, depth: int, num_heads: int, window_size: int, mlp_ratio: float = 4.0, drop: float = 0.0, drop_path: float = 0.0, downsample: Optional[Callable], use_checkpoint: bool = False, local_conv_size: int = 3, activation: Callable = nn.GELU, out_dim: Optional[int] = None) -> None:
+        """Initializes a Tiny Vision Transformer (TinyViT) model with specified parameters including dimensions, input resolution, depth, number of heads, window size, MLP ratio, dropout rates, downsample function, checkpoint usage, local convolution size, activation function, and output dimension. It constructs blocks based on the provided depth and parameters, and optionally includes a patch merging layer if downsample function is provided."""
 
         super().__init__()
         self.dim = dim
@@ -458,18 +449,19 @@ class LayerNorm2d(nn.Module):
         x = self.weight[:, None, None] * x + self.bias[:, None, None]
         return x
 class TinyViT(nn.Module):
-    def __init__(self, img_size=224, in_chans=3, num_classes=1000,
-                 embed_dims=[96, 192, 384, 768], depths=[2, 2, 6, 2],
-                 num_heads=[3, 6, 12, 24],
-                 window_sizes=[7, 7, 14, 7],
-                 mlp_ratio=4.,
-                 drop_rate=0.,
-                 drop_path_rate=0.1,
-                 use_checkpoint=False,
-                 mbconv_expand_ratio=4.0,
-                 local_conv_size=3,
-                 layer_lr_decay=1.0,
-                 ):
+    def __init__(self, img_size: int = 224, in_chans: int = 3, num_classes: int = 1000,
+                     embed_dims: list[int] = [96, 192, 384, 768], depths: list[int] = [2, 2, 6, 2],
+                     num_heads: list[int] = [3, 6, 12, 24],
+                     window_sizes: list[int] = [7, 7, 14, 7],
+                     mlp_ratio: float = 4.0,
+                     drop_rate: float = 0.0,
+                     drop_path_rate: float = 0.1,
+                     use_checkpoint: bool = False,
+                     mbconv_expand_ratio: float = 4.0,
+                     local_conv_size: int = 3,
+                     layer_lr_decay: float = 1.0,
+                     ) -> None:
+        """Initializes a Vision Transformer model with specified parameters including image size, number of classes, embedding dimensions, depths, number of heads, window sizes, MLP ratio, drop rates, and other hyperparameters. Constructs the model architecture with patch embedding, stochastic depth, multiple layers, classifier head, and initializes weights."""
         super().__init__()
         self.img_size=img_size
         self.num_classes = num_classes

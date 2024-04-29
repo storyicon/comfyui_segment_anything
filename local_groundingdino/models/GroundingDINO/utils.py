@@ -13,7 +13,8 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 
-def _get_clones(module, N, layer_share=False):
+def _get_clones(module: nn.Module, N: int, layer_share: bool) -> nn.ModuleList[nn.Module]:
+    """Returns a list of N clones of the input module, either sharing the same reference or deep copies based on the layer_share flag."""
     # import ipdb; ipdb.set_trace()
     if layer_share:
         return nn.ModuleList([module for i in range(N)])
@@ -26,7 +27,7 @@ def get_sine_pos_embed(
     num_pos_feats: int = 128,
     temperature: int = 10000,
     exchange_xy: bool = True,
-):
+) -> torch.Tensor:
     """generate sine position embedding from a position tensor
     Args:
         pos_tensor (torch.Tensor): shape: [..., n].
@@ -53,9 +54,7 @@ def get_sine_pos_embed(
     return pos_res
 
 
-def gen_encoder_output_proposals(
-    memory: Tensor, memory_padding_mask: Tensor, spatial_shapes: Tensor, learnedwh=None
-):
+def gen_encoder_output_proposals(memory: torch.Tensor, memory_padding_mask: torch.Tensor, spatial_shapes: torch.Tensor, learnedwh: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Input:
         - memory: bs, \sum{hw}, d_model
@@ -185,7 +184,7 @@ class MLP(nn.Module):
         return x
 
 
-def _get_activation_fn(activation, d_model=256, batch_dim=0):
+def _get_activation_fn(activation: str, d_model: int = 256, batch_dim: int = 0) -> callable:
     """Return an activation function given a string"""
     if activation == "relu":
         return F.relu
@@ -201,7 +200,8 @@ def _get_activation_fn(activation, d_model=256, batch_dim=0):
     raise RuntimeError(f"activation should be relu/gelu, not {activation}.")
 
 
-def gen_sineembed_for_position(pos_tensor):
+def gen_sineembed_for_position(pos_tensor: torch.Tensor) -> torch.Tensor:
+    """Generates sine embeddings for positional encoding based on the input position tensor and returns the resulting tensor."""
     # n_query, bs, _ = pos_tensor.size()
     # sineembed_tensor = torch.zeros(n_query, bs, 256)
     scale = 2 * math.pi

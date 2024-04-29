@@ -25,18 +25,20 @@ from torch.nn.init import constant_, xavier_uniform_
 
 
 # helpers
-def _is_power_of_2(n):
+def _is_power_of_2(n: int) -> bool:
+    """Checks if the input integer is a power of 2 by performing a bitwise operation and returns a boolean value. Raises a ValueError for negative integers or non-integer inputs."""
     if (not isinstance(n, int)) or (n < 0):
         raise ValueError("invalid input for _is_power_of_2: {} (type: {})".format(n, type(n)))
     return (n & (n - 1) == 0) and n != 0
 
 
 def multi_scale_deformable_attn_pytorch(
-    value: torch.Tensor,
-    value_spatial_shapes: torch.Tensor,
-    sampling_locations: torch.Tensor,
-    attention_weights: torch.Tensor,
-) -> torch.Tensor:
+        value: torch.Tensor, 
+        value_spatial_shapes: torch.Tensor, 
+        sampling_locations: torch.Tensor, 
+        attention_weights: torch.Tensor
+    ) -> torch.Tensor:
+    """Processes multi-scale deformable attention mechanism in PyTorch, utilizing various input tensors to compute and return the final output tensor."""
 
     bs, _, num_heads, embed_dims = value.shape
     _, num_queries, num_heads, num_levels, num_points, _ = sampling_locations.shape
@@ -93,14 +95,14 @@ class MultiScaleDeformableAttention(nn.Module):
     """
 
     def __init__(
-        self,
-        embed_dim: int = 256,
-        num_heads: int = 8,
-        num_levels: int = 4,
-        num_points: int = 4,
-        img2col_step: int = 64,
-        batch_first: bool = False,
-    ):
+            embed_dim: int,
+            num_heads: int,
+            num_levels: int,
+            num_points: int,
+            img2col_step: int,
+            batch_first: bool
+        ) -> None:
+        """Initializes an instance of a class with specified parameters, performing validation checks on the input values. It ensures that the embedding dimension is divisible by the number of heads and issues a warning if the head dimension is not a power of 2. The function sets various attributes and initializes linear layers for sampling offsets, attention weights, value projection, and output projection."""
         super().__init__()
         if embed_dim % num_heads != 0:
             raise ValueError(
@@ -171,17 +173,17 @@ class MultiScaleDeformableAttention(nn.Module):
         self.attention_weights.bias.requires_grad = False
 
     def forward(
-        self,
-        query: torch.Tensor,
-        key: Optional[torch.Tensor] = None,
-        value: Optional[torch.Tensor] = None,
-        query_pos: Optional[torch.Tensor] = None,
-        key_padding_mask: Optional[torch.Tensor] = None,
-        reference_points: Optional[torch.Tensor] = None,
-        spatial_shapes: Optional[torch.Tensor] = None,
-        level_start_index: Optional[torch.Tensor] = None,
-        **kwargs
-    ) -> torch.Tensor:
+            self,
+            query: torch.Tensor,
+            key: torch.Tensor | None = None,
+            value: torch.Tensor | None = None,
+            query_pos: torch.Tensor | None = None,
+            key_padding_mask: torch.Tensor | None = None,
+            reference_points: torch.Tensor | None = None,
+            spatial_shapes: torch.Tensor | None = None,
+            level_start_index: torch.Tensor | None = None,
+            **kwargs
+        ) -> torch.Tensor:
 
         """Forward Function of MultiScaleDeformableAttention
 

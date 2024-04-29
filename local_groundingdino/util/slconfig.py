@@ -18,7 +18,8 @@ DELETE_KEY = "_delete_"
 RESERVED_KEYS = ["filename", "text", "pretty_text", "get", "dump", "merge_from_dict"]
 
 
-def check_file_exist(filename, msg_tmpl='file "{}" does not exist'):
+def check_file_exist(filename: str, msg_tmpl: str = str) -> None:
+    """Raises a FileNotFoundError if the specified file does not exist."""
     if not osp.isfile(filename):
         raise FileNotFoundError(msg_tmpl.format(filename))
 
@@ -65,7 +66,8 @@ class SLConfig(object):
     """
 
     @staticmethod
-    def _validate_py_syntax(filename):
+    def _validate_py_syntax(filename: str) -> None:
+        """Validates the Python syntax of a file by attempting to parse its content using the ast module. Raises a SyntaxError if there are syntax errors in the file."""
         with open(filename) as f:
             content = f.read()
         try:
@@ -74,7 +76,8 @@ class SLConfig(object):
             raise SyntaxError("There are syntax errors in config " f"file {filename}")
 
     @staticmethod
-    def _file2dict(filename):
+    def _file2dict(filename: str) -> tuple[dict, str]:
+        """Merges the content of a specified file into a dictionary, handling different file types (py/yml/yaml/json) appropriately. Validates Python syntax if the file is a .py file and supports merging with base files while preventing duplicate keys."""
         filename = osp.abspath(osp.expanduser(filename))
         check_file_exist(filename)
         if filename.lower().endswith(".py"):
@@ -137,7 +140,7 @@ class SLConfig(object):
         return cfg_dict, cfg_text
 
     @staticmethod
-    def _merge_a_into_b(a, b):
+    def _merge_a_into_b(a: dict, b: dict) -> dict:
         """merge dict `a` into dict `b` (non-inplace).
             values in `a` will overwrite `b`.
             copy first to avoid inplace modification
@@ -181,11 +184,13 @@ class SLConfig(object):
         return b
 
     @staticmethod
-    def fromfile(filename):
+    def fromfile(filename: str) -> tuple[dict, str]:
+        """Loads configuration settings from a specified file, creating an SLConfig object with the parsed dictionary and additional information like the original text content and filename. The file can be in various formats (py/yml/yaml/json), supporting Python syntax validation for .py files and preventing duplicate keys when merging with base files."""
         cfg_dict, cfg_text = SLConfig._file2dict(filename)
         return SLConfig(cfg_dict, cfg_text=cfg_text, filename=filename)
 
-    def __init__(self, cfg_dict=None, cfg_text=None, filename=None):
+    def __init__(self, cfg_dict: dict | None = None, cfg_text: str | None = None, filename: str | None = None) -> None:
+        """Initializes an instance of SLConfig with optional configuration dictionary, text, and filename. Validates the input dictionary, checks for reserved keys, and sets internal attributes based on the provided inputs. If a configuration text or filename is given, it reads the text from the file."""
         if cfg_dict is None:
             cfg_dict = dict()
         elif not isinstance(cfg_dict, dict):
@@ -329,12 +334,14 @@ class SLConfig(object):
     def __getitem__(self, name):
         return self._cfg_dict.__getitem__(name)
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: dict | ConfigDict) -> None:
+        """Sets an attribute with a dictionary or ConfigDict value after converting the dictionary to a ConfigDict if needed."""
         if isinstance(value, dict):
             value = ConfigDict(value)
         self._cfg_dict.__setattr__(name, value)
 
-    def __setitem__(self, name, value):
+    def __setitem__(self, name: str, value: dict | ConfigDict) -> None:
+        """Sets an item in the ConfigDict object with the specified name and value, converting the value to a ConfigDict if it is a dictionary."""
         if isinstance(value, dict):
             value = ConfigDict(value)
         self._cfg_dict.__setitem__(name, value)
@@ -350,7 +357,7 @@ class SLConfig(object):
             with open(file, "w") as f:
                 f.write(self.pretty_text)
 
-    def merge_from_dict(self, options):
+    def merge_from_dict(self, options: dict) -> None:
         """Merge list into cfg_dict
 
         Merge the dict parsed by MultipleKVAction into this cfg.
@@ -386,10 +393,12 @@ class SLConfig(object):
     def __setstate__(self, state):
         self.__init__(state)
 
-    def copy(self):
+    def copy(self) -> SLConfig:
+        """Returns a copy of the SLConfig object by creating a new SLConfig instance with a copy of the internal configuration dictionary."""
         return SLConfig(self._cfg_dict.copy())
 
-    def deepcopy(self):
+    def deepcopy(self) -> SLConfig:
+        """Creates a deep copy of the SLConfig object by deepcopying its internal configuration dictionary."""
         return SLConfig(self._cfg_dict.deepcopy())
 
 
