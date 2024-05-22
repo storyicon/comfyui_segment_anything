@@ -1,6 +1,6 @@
 [project]
 name = "comfyui_segment_anything"
-description = ""
+description = "Based on GroundingDino and SAM, use semantic strings to segment any element in an image. The comfyui version of sd-webui-segment-anything."
 version = "1.0.0"
 license = "LICENSE"
 dependencies = ["segment_anything", "timm", "addict", "yapf"]
