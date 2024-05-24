@@ -8,6 +8,8 @@ import torch
 
 from functools import partial
 
+import comfy.model_management
+
 from .modeling.mask_decoder_hq import MaskDecoderHQ
 from .modeling.image_encoder import ImageEncoderViTHQ
 from .modeling.tiny_vit import TinyViT
@@ -64,7 +66,8 @@ def _load_sam_checkpoint(sam: Sam, checkpoint=None):
     sam.eval()
     if checkpoint is not None:
         with open(checkpoint, "rb") as f:
-            state_dict = torch.load(f)
+            sam_device = comfy.model_management.get_torch_device()
+            state_dict = torch.load(f, map_location=sam_device)
         info = sam.load_state_dict(state_dict, strict=False)
         print(info)
     for _, p in sam.named_parameters():
