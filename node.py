@@ -437,10 +437,13 @@ def plot_boxes_to_image(image_pil, tgt):
         mask_tensor = torch.from_numpy(mask).permute(2, 0, 1).float() / 255.0
         res_mask.append(mask_tensor)
 
+    if len(res_mask) == 0:
+        mask = np.zeros((H, W, 1), dtype=np.uint8)
+        mask_tensor = torch.from_numpy(mask).permute(2, 0, 1).float() / 255.0
+        res_mask.append(mask_tensor)
+
     # Convert the modified image to a torch tensor
-    image_with_boxes_tensor = torch.from_numpy(
-        image_with_boxes.astype(np.float32) / 255.0
-    )
+    image_with_boxes_tensor = torch.from_numpy(image_with_boxes.astype(np.float32) / 255.0)
     image_with_boxes_tensor = torch.unsqueeze(image_with_boxes_tensor, 0)
     res_image.append(image_with_boxes_tensor)
 
@@ -459,6 +462,7 @@ class GroundingDinoDetect:
                     "FLOAT",
                     {"default": 0.3, "min": 0, "max": 1.0, "step": 0.01},
                 ),
+                "only_output_result":  (["enable", "disable"],),
             }
         }
 
@@ -466,17 +470,19 @@ class GroundingDinoDetect:
     FUNCTION = "main"
     RETURN_TYPES = ("IMAGE", "MASK")
 
-    def main(self, grounding_dino_model, image, prompt, threshold):
+    def main(self, grounding_dino_model, image, prompt, threshold, only_output_result):
         res_images = []
         res_masks = []
+        count =1
         for item in image:
+            count+=1
             image_pil = Image.fromarray(
                 np.clip(255.0 * item.cpu().numpy(), 0, 255).astype(np.uint8)
             ).convert("RGBA")
             boxes, pred_phrases = groundingdino_predict(
                 grounding_dino_model, image_pil, prompt, threshold
             )
-            if boxes.shape[0] == 0:
+            if boxes.shape[0] == 0 and only_output_result == "enable":
                 break
 
             size = image_pil.size
@@ -485,14 +491,17 @@ class GroundingDinoDetect:
                 "size": [size[1], size[0]],
                 "labels": pred_phrases,
             }
+
             image_tensor, mask_tensor = plot_boxes_to_image(image_pil, pred_dict)
 
             res_images.extend(image_tensor)
             res_masks.extend(mask_tensor)
-        if len(res_images) == 0:
-            _, height, width, _ = image.size()
-            empty_mask = torch.zeros(
-                (1, height, width), dtype=torch.uint8, device="cpu"
-            )
-            return (empty_mask, empty_mask)
+
+            if len(res_images) == 0:
+                res_images.extend(item)
+            if len(res_masks) == 0:
+                mask = np.zeros((height, width, 1), dtype=np.uint8)
+                empty_mask = torch.from_numpy(mask).permute(2, 0, 1).float() / 255.0
+                res_masks.extend(empty_mask)
+
         return (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
