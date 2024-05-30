@@ -8,6 +8,8 @@ import copy
 import torch
 import numpy as np
 import cv2
+import re
+import json
 
 from PIL import Image, ImageDraw, ImageFont
 import logging
@@ -24,7 +26,6 @@ from local_groundingdino.models import build_model as local_groundingdino_build_
 from local_groundingdino.util.utils import get_phrases_from_posmap
 
 import glob
-import folder_paths
 
 logger = logging.getLogger('comfyui_segment_anything')
 
@@ -163,9 +164,17 @@ def groundingdino_predict(
         image, _ = transform(image_pil, None)  # 3, h, w
         return image
 
+    def replace_commas_with_dots(input_string):
+        if ',' in input_string or '，' in input_string:
+            modified_string = input_string.replace(',', '.').replace('，', '.')
+            return modified_string
+        else:
+            return input_string
+
     def get_grounding_output(model, image, caption, box_threshold):
         caption = caption.lower()
         caption = caption.strip()
+        caption = replace_commas_with_dots(caption)
         if not caption.endswith("."):
             caption = caption + "."
         device = comfy.model_management.get_torch_device()
@@ -184,6 +193,7 @@ def groundingdino_predict(
         # get phrase
         tokenlizer = model.tokenizer
         tokenized = tokenlizer(caption)
+        # print("grounding",caption)
         # build pred
         pred_phrases = []
         for logit, box in zip(logits_filt, boxes_filt):
@@ -382,6 +392,21 @@ class IsMaskEmptyNode:
     def main(self, mask):
         return (torch.all(mask == 0).int().item(), )
 
+def checkLabel(label,show_prompt):
+    label = label.lower().split("(")[0]
+    labels = show_prompt.split(",")
+    for l in labels:
+        new_label = l.lower()
+        if label == new_label:
+            return True
+    return False
+
+def parse_json_string(json_string):
+    try:
+        return json.loads(json_string)
+    except json.JSONDecodeError as e:
+        print(f"{json_string} decode error: {e}")
+        return None
 
 def plot_boxes_to_image(image_pil, tgt):
 
@@ -390,6 +415,11 @@ def plot_boxes_to_image(image_pil, tgt):
     H, W = tgt["size"]
     boxes = tgt["boxes"]
     labels = tgt["labels"]
+    show_prompt = tgt["show_prompt"]
+    event_prompt = tgt["event_prompt"]
+    prompt_name = tgt["prompt_name"]
+
+    prompt_list = parse_json_string(prompt_name)
 
     res_mask = []
     res_image = []
@@ -402,9 +432,54 @@ def plot_boxes_to_image(image_pil, tgt):
     # Make a copy of the image to avoid modifying the original image
     image_with_boxes = np.copy(image_np)
 
+    labelme_data = {
+        "version": "4.5.6",
+        "flags": {},
+        "shapes": [],
+        "imagePath": None,
+        "imageData": None,
+        "imageHeight": H,
+        "imageWidth": W,
+    }
     for box, label in zip(boxes, labels):
+
+        # if lable is not in show,do not draw the label
+        if(show_prompt!='all' and show_prompt!=''):
+            if(checkLabel(label,show_prompt)==False):
+                continue
+
+        # if lable is event ,color is red ,else color is green
+        if (event_prompt!='all' and  event_prompt!=''):
+            if(checkLabel(label,event_prompt)):
+                box_color = (255, 0, 0)
+                text_color = (255, 255, 255)
+            else:
+                box_color = (0, 255, 0)
+                text_color = (255, 255, 255)
+
         x1, y1, x2, y2 = box
         x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+        # save labelme json
+        points = [[x1, y1], [x2, y2]]
+        shape = {
+            "label": label.lower().split("(")[0],
+            "points": points,
+            "group_id": None,
+            "shape_type": "rectangle",
+            "flags": {},
+        }
+        labelme_data["shapes"].append(shape)
+
+        # change lable
+        label_name = label.lower().split("(")[0]
+        threshold = label.lower().split("(")[1].split(")")[0]
+
+        if prompt_list is not None and label_name in prompt_list:
+            label_name = prompt_list[label_name]
+
+        print("label",label,label_name,threshold)
+        label = label_name+":"+threshold
 
         # Draw rectangle on the copied image
         cv2.rectangle(
@@ -429,9 +504,11 @@ def plot_boxes_to_image(image_pil, tgt):
             font_scale,
             text_color,
             2,
+            cv2.LINE_AA,
+            bottomLeftOrigin=False,
         )
 
-        # Draw box
+        # Draw mask
         mask = np.zeros((H, W, 1), dtype=np.uint8)
         cv2.rectangle(mask, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 255), -1)
         mask_tensor = torch.from_numpy(mask).permute(2, 0, 1).float() / 255.0
@@ -447,7 +524,7 @@ def plot_boxes_to_image(image_pil, tgt):
     image_with_boxes_tensor = torch.unsqueeze(image_with_boxes_tensor, 0)
     res_image.append(image_with_boxes_tensor)
 
-    return res_image, res_mask
+    return res_image, res_mask, labelme_data
 
 
 class GroundingDinoDetect:
@@ -462,17 +539,44 @@ class GroundingDinoDetect:
                     "FLOAT",
                     {"default": 0.3, "min": 0, "max": 1.0, "step": 0.01},
                 ),
-                "only_output_result":  (["enable", "disable"],),
+                "only_output_result": (["enable", "disable"],),
+                "show_prompt": (
+                    "STRING",
+                    {"default": "all", "multiline": False},
+                ),
+                "event_prompt": (
+                    "STRING",
+                    {"default": "all", "multiline": False},
+                ),
+                "prompt_name": (
+                    "STRING",
+                    {
+                        "default": '"{"head":"no helmet","helmet":"helmet"}"',
+                        "multiline": False,
+                    },
+                ),
             }
         }
 
     CATEGORY = "segment_anything"
     FUNCTION = "main"
-    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_TYPES = ("IMAGE", "MASK","JSON",)
 
-    def main(self, grounding_dino_model, image, prompt, threshold, only_output_result):
+    def main(
+        self,
+        grounding_dino_model,
+        image,
+        prompt,
+        threshold,
+        only_output_result,
+        show_prompt,
+        event_prompt,
+        prompt_name,
+    ):
         res_images = []
         res_masks = []
+        res_labels = []
+
         count =1
         for item in image:
             count+=1
@@ -490,12 +594,18 @@ class GroundingDinoDetect:
                 "boxes": boxes,
                 "size": [size[1], size[0]],
                 "labels": pred_phrases,
+                "show_prompt": show_prompt,
+                "event_prompt": event_prompt,
+                "prompt_name": prompt_name,
             }
 
-            image_tensor, mask_tensor = plot_boxes_to_image(image_pil, pred_dict)
+            image_tensor, mask_tensor, labelme_data = plot_boxes_to_image(
+                image_pil, pred_dict
+            )
 
             res_images.extend(image_tensor)
             res_masks.extend(mask_tensor)
+            res_labels.append(labelme_data)
 
             if len(res_images) == 0:
                 res_images.extend(item)
@@ -504,4 +614,8 @@ class GroundingDinoDetect:
                 empty_mask = torch.from_numpy(mask).permute(2, 0, 1).float() / 255.0
                 res_masks.extend(empty_mask)
 
-        return (torch.cat(res_images, dim=0), torch.cat(res_masks, dim=0))
+        return (
+            torch.cat(res_images, dim=0),
+            torch.cat(res_masks, dim=0),
+            res_labels,
+        )
