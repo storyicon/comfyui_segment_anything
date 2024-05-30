@@ -551,7 +551,7 @@ class GroundingDinoDetect:
                 "prompt_name": (
                     "STRING",
                     {
-                        "default": '"{"head":"no helmet","helmet":"helmet"}"',
+                        "default": '{"head":"no helmet","helmet":"helmet"}',
                         "multiline": False,
                     },
                 ),
