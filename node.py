@@ -7,7 +7,11 @@ sys.path.append(
 import copy
 import torch
 import numpy as np
-from PIL import Image
+import cv2
+import re
+import json
+
+from PIL import Image, ImageDraw, ImageFont
 import logging
 from torch.hub import download_url_to_file
 from urllib.parse import urlparse
@@ -19,8 +23,9 @@ from local_groundingdino.datasets import transforms as T
 from local_groundingdino.util.utils import clean_state_dict as local_groundingdino_clean_state_dict
 from local_groundingdino.util.slconfig import SLConfig as local_groundingdino_SLConfig
 from local_groundingdino.models import build_model as local_groundingdino_build_model
+from local_groundingdino.util.utils import get_phrases_from_posmap
+
 import glob
-import folder_paths
 
 logger = logging.getLogger('comfyui_segment_anything')
 
@@ -159,9 +164,17 @@ def groundingdino_predict(
         image, _ = transform(image_pil, None)  # 3, h, w
         return image
 
+    def replace_commas_with_dots(input_string):
+        if ',' in input_string or '，' in input_string:
+            modified_string = input_string.replace(',', '.').replace('，', '.')
+            return modified_string
+        else:
+            return input_string
+
     def get_grounding_output(model, image, caption, box_threshold):
         caption = caption.lower()
         caption = caption.strip()
+        caption = replace_commas_with_dots(caption)
         if not caption.endswith("."):
             caption = caption + "."
         device = comfy.model_management.get_torch_device()
@@ -176,10 +189,23 @@ def groundingdino_predict(
         filt_mask = logits_filt.max(dim=1)[0] > box_threshold
         logits_filt = logits_filt[filt_mask]  # num_filt, 256
         boxes_filt = boxes_filt[filt_mask]  # num_filt, 4
-        return boxes_filt.cpu()
+
+        # get phrase
+        tokenlizer = model.tokenizer
+        tokenized = tokenlizer(caption)
+        # print("grounding",caption)
+        # build pred
+        pred_phrases = []
+        for logit, box in zip(logits_filt, boxes_filt):
+            pred_phrase = get_phrases_from_posmap(
+                logit > box_threshold, tokenized, tokenlizer
+            )
+            pred_phrases.append(pred_phrase + f"({str(logit.max().item())[:4]})")
+
+        return boxes_filt.cpu(), pred_phrases
 
     dino_image = load_dino_image(image.convert("RGB"))
-    boxes_filt = get_grounding_output(
+    boxes_filt, pred_phrases = get_grounding_output(
         dino_model, dino_image, prompt, threshold
     )
     H, W = image.size[1], image.size[0]
@@ -187,7 +213,7 @@ def groundingdino_predict(
         boxes_filt[i] = boxes_filt[i] * torch.Tensor([W, H, W, H])
         boxes_filt[i][:2] -= boxes_filt[i][2:] / 2
         boxes_filt[i][2:] += boxes_filt[i][:2]
-    return boxes_filt
+    return boxes_filt, pred_phrases
 
 
 def create_pil_output(image_np, masks, boxes_filt):
@@ -224,7 +250,6 @@ def split_image_mask(image):
     else:
         mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
     return (image_rgb, mask)
-
 
 def sam_segment(
     sam_model,
@@ -314,11 +339,8 @@ class GroundingDinoSAMSegment:
         for item in image:
             item = Image.fromarray(
                 np.clip(255. * item.cpu().numpy(), 0, 255).astype(np.uint8)).convert('RGBA')
-            boxes = groundingdino_predict(
-                grounding_dino_model,
-                item,
-                prompt,
-                threshold
+            boxes, pred_phrases = groundingdino_predict(
+                grounding_dino_model, item, prompt, threshold
             )
             if boxes.shape[0] == 0:
                 break
@@ -368,3 +390,171 @@ class IsMaskEmptyNode:
 
     def main(self, mask):
         return (torch.all(mask == 0).int().item(), )
+
+
+def plot_boxes_to_image(image_pil, tgt):
+
+    image_np = np.array(image_pil)
+
+    H, W = tgt["size"]
+    boxes = tgt["boxes"]
+    labels = tgt["labels"]
+
+    res_mask = []
+    res_image = []
+
+    font_scale = 1
+    box_color = (255, 0, 0)
+    text_color = (255, 255, 255)
+    image_np = image_np[..., :3]
+
+    # Make a copy of the image to avoid modifying the original image
+    image_with_boxes = np.copy(image_np)
+
+    labelme_data = {
+        "version": "4.5.6",
+        "flags": {},
+        "shapes": [],
+        "imagePath": None,
+        "imageData": None,
+        "imageHeight": H,
+        "imageWidth": W,
+    }
+    for box, label in zip(boxes, labels):
+        x1, y1, x2, y2 = box
+        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+        # save labelme json
+        points = [[x1, y1], [x2, y2]]
+        shape = {
+            "label": label.lower().split("(")[0],
+            "points": points,
+            "group_id": None,
+            "shape_type": "rectangle",
+            "flags": {},
+        }
+        labelme_data["shapes"].append(shape)
+
+        # change lable
+        label_name = label.lower().split("(")[0]
+        threshold = label.lower().split("(")[1].split(")")[0]
+        label = label_name+":"+threshold
+        shape["threshold"] = threshold
+
+        # Draw rectangle on the copied image
+        cv2.rectangle(
+            image_with_boxes, (int(x1), int(y1)), (int(x2), int(y2)), box_color, 3
+        )
+
+        # Draw label on the copied image
+        label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 2)[0]
+        label_ymin = max(y1, label_size[1] + 10)
+        cv2.rectangle(
+            image_with_boxes,
+            (x1, y1 - label_size[1] - 10),
+            (x1 + label_size[0], y1),
+            box_color,
+            -1,
+        )
+        cv2.putText(
+            image_with_boxes,
+            label,
+            (x1, y1 - 7),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            font_scale,
+            text_color,
+            2,
+            cv2.LINE_AA,
+            bottomLeftOrigin=False,
+        )
+
+        # Draw mask
+        mask = np.zeros((H, W, 1), dtype=np.uint8)
+        cv2.rectangle(mask, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 255), -1)
+        mask_tensor = torch.from_numpy(mask).permute(2, 0, 1).float() / 255.0
+        res_mask.append(mask_tensor)
+
+    if len(res_mask) == 0:
+        mask = np.zeros((H, W, 1), dtype=np.uint8)
+        mask_tensor = torch.from_numpy(mask).permute(2, 0, 1).float() / 255.0
+        res_mask.append(mask_tensor)
+
+    # Convert the modified image to a torch tensor
+    image_with_boxes_tensor = torch.from_numpy(image_with_boxes.astype(np.float32) / 255.0)
+    image_with_boxes_tensor = torch.unsqueeze(image_with_boxes_tensor, 0)
+    res_image.append(image_with_boxes_tensor)
+
+    return res_image, res_mask, labelme_data
+
+
+class GroundingDinoDetect:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "grounding_dino_model": ("GROUNDING_DINO_MODEL", {}),
+                "image": ("IMAGE", {}),
+                "prompt": ("STRING", {}),
+                "threshold": (
+                    "FLOAT",
+                    {"default": 0.3, "min": 0, "max": 1.0, "step": 0.01},
+                ),
+                "only_output_result": (["enable", "disable"],),
+            }
+        }
+
+    CATEGORY = "segment_anything"
+    FUNCTION = "main"
+    RETURN_TYPES = ("IMAGE", "MASK","JSON",)
+
+    def main(
+        self,
+        grounding_dino_model,
+        image,
+        prompt,
+        threshold,
+        only_output_result,
+    ):
+        res_images = []
+        res_masks = []
+        res_labels = []
+
+        count =1
+        for item in image:
+            count+=1
+            image_pil = Image.fromarray(
+                np.clip(255.0 * item.cpu().numpy(), 0, 255).astype(np.uint8)
+            ).convert("RGBA")
+            boxes, pred_phrases = groundingdino_predict(
+                grounding_dino_model, image_pil, prompt, threshold
+            )
+            if boxes.shape[0] == 0 and only_output_result == "enable":
+                break
+
+            size = image_pil.size
+            pred_dict = {
+                "boxes": boxes,
+                "size": [size[1], size[0]],
+                "labels": pred_phrases,
+            }
+
+            image_tensor, mask_tensor, labelme_data = plot_boxes_to_image(
+                image_pil, pred_dict
+            )
+
+            res_images.extend(image_tensor)
+            res_masks.extend(mask_tensor)
+            res_labels.append(labelme_data)
+
+            if len(res_images) == 0:
+                res_images.extend(item)
+            if len(res_masks) == 0:
+                mask = np.zeros((height, width, 1), dtype=np.uint8)
+                empty_mask = torch.from_numpy(mask).permute(2, 0, 1).float() / 255.0
+                res_masks.extend(empty_mask)
+
+        return (
+            torch.cat(res_images, dim=0),
+            torch.cat(res_masks, dim=0),
+            res_labels,
+        )
