@@ -251,7 +251,6 @@ def split_image_mask(image):
         mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
     return (image_rgb, mask)
 
-
 def sam_segment(
     sam_model,
     image,
@@ -392,21 +391,6 @@ class IsMaskEmptyNode:
     def main(self, mask):
         return (torch.all(mask == 0).int().item(), )
 
-def checkLabel(label,show_prompt):
-    label = label.lower().split("(")[0]
-    labels = show_prompt.split(",")
-    for l in labels:
-        new_label = l.lower()
-        if label == new_label:
-            return True
-    return False
-
-def parse_json_string(json_string):
-    try:
-        return json.loads(json_string)
-    except json.JSONDecodeError as e:
-        print(f"{json_string} decode error: {e}")
-        return None
 
 def plot_boxes_to_image(image_pil, tgt):
 
@@ -415,11 +399,6 @@ def plot_boxes_to_image(image_pil, tgt):
     H, W = tgt["size"]
     boxes = tgt["boxes"]
     labels = tgt["labels"]
-    show_prompt = tgt["show_prompt"]
-    event_prompt = tgt["event_prompt"]
-    prompt_name = tgt["prompt_name"]
-
-    prompt_list = parse_json_string(prompt_name)
 
     res_mask = []
     res_image = []
@@ -442,21 +421,6 @@ def plot_boxes_to_image(image_pil, tgt):
         "imageWidth": W,
     }
     for box, label in zip(boxes, labels):
-
-        # if lable is not in show,do not draw the label
-        if(show_prompt!='all' and show_prompt!=''):
-            if(checkLabel(label,show_prompt)==False):
-                continue
-
-        # if lable is event ,color is red ,else color is green
-        if (event_prompt!='all' and  event_prompt!=''):
-            if(checkLabel(label,event_prompt)):
-                box_color = (255, 0, 0)
-                text_color = (255, 255, 255)
-            else:
-                box_color = (0, 255, 0)
-                text_color = (255, 255, 255)
-
         x1, y1, x2, y2 = box
         x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
@@ -474,12 +438,8 @@ def plot_boxes_to_image(image_pil, tgt):
         # change lable
         label_name = label.lower().split("(")[0]
         threshold = label.lower().split("(")[1].split(")")[0]
-
-        if prompt_list is not None and label_name in prompt_list:
-            label_name = prompt_list[label_name]
-
-        print("label",label,label_name,threshold)
         label = label_name+":"+threshold
+        shape["threshold"] = threshold
 
         # Draw rectangle on the copied image
         cv2.rectangle(
@@ -540,21 +500,6 @@ class GroundingDinoDetect:
                     {"default": 0.3, "min": 0, "max": 1.0, "step": 0.01},
                 ),
                 "only_output_result": (["enable", "disable"],),
-                "show_prompt": (
-                    "STRING",
-                    {"default": "all", "multiline": False},
-                ),
-                "event_prompt": (
-                    "STRING",
-                    {"default": "all", "multiline": False},
-                ),
-                "prompt_name": (
-                    "STRING",
-                    {
-                        "default": '{"head":"no helmet","helmet":"helmet"}',
-                        "multiline": False,
-                    },
-                ),
             }
         }
 
@@ -569,9 +514,6 @@ class GroundingDinoDetect:
         prompt,
         threshold,
         only_output_result,
-        show_prompt,
-        event_prompt,
-        prompt_name,
     ):
         res_images = []
         res_masks = []
@@ -594,9 +536,6 @@ class GroundingDinoDetect:
                 "boxes": boxes,
                 "size": [size[1], size[0]],
                 "labels": pred_phrases,
-                "show_prompt": show_prompt,
-                "event_prompt": event_prompt,
-                "prompt_name": prompt_name,
             }
 
             image_tensor, mask_tensor, labelme_data = plot_boxes_to_image(
