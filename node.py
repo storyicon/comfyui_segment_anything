@@ -62,10 +62,10 @@ groundingdino_model_list = {
 }
 
 def get_bert_base_uncased_model_path():
-    comfy_bert_model_base = os.path.join(folder_paths.models_dir, 'bert-base-uncased')
-    if glob.glob(os.path.join(comfy_bert_model_base, '**/model.safetensors'), recursive=True):
+    comfy_bert_model_base = folder_paths.get_full_path('bert-base-uncased', "model.safetensors")
+    if os.path.exists(comfy_bert_model_base):
         print('grounding-dino is using models/bert-base-uncased')
-        return comfy_bert_model_base
+        return os.path.dirname(comfy_bert_model_base)
     return 'bert-base-uncased'
 
 def list_files(dirpath, extensions=[]):
