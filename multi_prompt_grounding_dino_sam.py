@@ -1,49 +1,38 @@
+from .node import *
 import torch
-import numpy as np
-from PIL import Image
-from typing import List, Tuple, Union
-
-# Import the necessary classes from comfyui_segment_anything
-from .node import GroundingDinoSAMSegment, load_groundingdino_model, load_sam_model
 
 class MultiPromptGroundingDinoSAMSegment(GroundingDinoSAMSegment):
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "prompts": ("STRING", {"forceInput": True}),  # This will be a list from BatchPromptSplitter
-                "box_threshold": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "text_threshold": ("FLOAT", {"default": 0.25, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "iou_threshold": ("FLOAT", {"default": 0.8, "min": 0.0, "max": 1.0, "step": 0.01}),
-            }
-        }
+    def INPUT_TYPES(cls):
+        base_input_types = GroundingDinoSAMSegment.INPUT_TYPES()
+        base_input_types["required"].pop("prompt", None)  # Remove single prompt
+        base_input_types["required"]["prompts"] = ("STRING", {"forceInput": True})  # Add multi-prompt input
+        return base_input_types
 
-    RETURN_TYPES = ("MASK",)
+    CATEGORY = "segment_anything"
     FUNCTION = "segment_multi_prompt"
-    CATEGORY = "image/segmentation"
+    RETURN_TYPES = ("IMAGE", "MASK")
 
-    def __init__(self):
-        super().__init__()
+    def segment_multi_prompt(self, grounding_dino_model, sam_model, image, prompts, threshold):
+        prompts = prompts if isinstance(prompts, list) else [p.strip() for p in prompts.split(',')]
 
-    def segment_multi_prompt(self, image: torch.Tensor, prompts: List[str], box_threshold: float, text_threshold: float, iou_threshold: float) -> Tuple[torch.Tensor]:
-        # Convert the image tensor to a PIL Image
-        pil_image = Image.fromarray((image.squeeze().cpu().numpy() * 255).astype(np.uint8))
-
-        # Initialize models if not already done
-        if self.groundingdino_model is None:
-            self.groundingdino_model = load_groundingdino_model()
-        if self.sam_model is None:
-            self.sam_model = load_sam_model()
-
-        combined_mask = torch.zeros_like(image[0, 0], dtype=torch.float32)
+        combined_image = None
+        combined_mask = None
 
         for prompt in prompts:
-            # Use the existing segment method for each prompt
-            mask = super().segment(image, prompt, box_threshold, text_threshold, iou_threshold)[0]
-            combined_mask = torch.max(combined_mask, mask)
+            result_image, result_mask = super().main(grounding_dino_model, sam_model, image, prompt, threshold)
+            
+            if combined_image is None:
+                combined_image = result_image
+                combined_mask = result_mask
+            else:
+                combined_mask = torch.logical_or(combined_mask, result_mask)
+                combined_image = torch.min(combined_image, result_image)
 
-        return (combined_mask,)
+        if combined_image is None:
+            return image, torch.zeros((image.shape[0], image.shape[2], image.shape[3]), dtype=torch.float32, device=image.device)
+
+        return combined_image, combined_mask.float()
 
 NODE_CLASS_MAPPINGS = {
     "MultiPromptGroundingDinoSAMSegment": MultiPromptGroundingDinoSAMSegment
