@@ -27,10 +27,6 @@ class MultiPromptGroundingDinoSAMSegment(GroundingDinoSAMSegment):
                 combined_mask = result_mask
             else:
                 combined_mask = torch.logical_or(combined_mask, result_mask)
-                combined_image = torch.min(combined_image, result_image)
-
-        if combined_image is None:
-            return image, torch.zeros((image.shape[0], image.shape[2], image.shape[3]), dtype=torch.float32, device=image.device)
 
         return combined_image, combined_mask.float()
 
