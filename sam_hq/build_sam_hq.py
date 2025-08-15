@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
+import comfy.model_management
 
 from functools import partial
 
@@ -63,8 +64,9 @@ sam_model_registry = {
 def _load_sam_checkpoint(sam: Sam, checkpoint=None):
     sam.eval()
     if checkpoint is not None:
+        device = comfy.model_management.get_torch_device()
         with open(checkpoint, "rb") as f:
-            state_dict = torch.load(f)
+            state_dict = torch.load(f, map_location=device)
         info = sam.load_state_dict(state_dict, strict=False)
         print(info)
     for _, p in sam.named_parameters():

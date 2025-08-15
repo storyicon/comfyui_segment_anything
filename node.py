@@ -124,15 +124,16 @@ def load_groundingdino_model(model_name):
         dino_model_args.text_encoder_type = get_bert_base_uncased_model_path()
     
     dino = local_groundingdino_build_model(dino_model_args)
+    device = comfy.model_management.get_torch_device()
     checkpoint = torch.load(
         get_local_filepath(
             groundingdino_model_list[model_name]["model_url"],
             groundingdino_model_dir_name,
         ),
+        map_location=device,
     )
     dino.load_state_dict(local_groundingdino_clean_state_dict(
         checkpoint['model']), strict=False)
-    device = comfy.model_management.get_torch_device()
     dino.to(device=device)
     dino.eval()
     return dino
