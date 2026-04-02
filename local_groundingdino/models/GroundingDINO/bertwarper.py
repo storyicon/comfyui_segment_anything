@@ -20,9 +20,58 @@ class BertModelWarper(nn.Module):
         self.encoder = bert_model.encoder
         self.pooler = bert_model.pooler
 
-        self.get_extended_attention_mask = bert_model.get_extended_attention_mask
-        self.invert_attention_mask = bert_model.invert_attention_mask
-        self.get_head_mask = bert_model.get_head_mask
+    # The following three methods were previously copied as bound methods from
+    # the BertModel instance. Transformers v5.0 changed/removed their APIs
+    # (get_head_mask removed in PR #41076; get_extended_attention_mask changed
+    # its 3rd parameter from `device` to `dtype`). Reimplementing them here
+    # makes this code independent of the transformers version.
+
+    def get_extended_attention_mask(self, attention_mask, input_shape, device=None):
+        if attention_mask.dim() == 3:
+            extended_attention_mask = attention_mask[:, None, :, :]
+        elif attention_mask.dim() == 2:
+            if getattr(self.config, "is_decoder", False):
+                batch_size, seq_length = input_shape
+                seq_ids = torch.arange(seq_length, device=attention_mask.device)
+                causal_mask = seq_ids[None, None, :].repeat(batch_size, seq_length, 1) <= seq_ids[None, :, None]
+                causal_mask = causal_mask.to(attention_mask.dtype)
+                if causal_mask.shape[1] < attention_mask.shape[1]:
+                    prefix_seq_len = attention_mask.shape[1] - causal_mask.shape[1]
+                    causal_mask = torch.cat(
+                        [torch.ones((batch_size, seq_length, prefix_seq_len), device=attention_mask.device, dtype=causal_mask.dtype), causal_mask], axis=-1,
+                    )
+                extended_attention_mask = causal_mask[:, None, :, :] * attention_mask[:, None, None, :]
+            else:
+                extended_attention_mask = attention_mask[:, None, None, :]
+        else:
+            raise ValueError(
+                f"Wrong shape for attention_mask (shape {attention_mask.shape})"
+            )
+        extended_attention_mask = extended_attention_mask.to(dtype=torch.float32)
+        extended_attention_mask = (1.0 - extended_attention_mask) * torch.finfo(torch.float32).min
+        return extended_attention_mask
+
+    def invert_attention_mask(self, encoder_attention_mask):
+        if encoder_attention_mask.dim() == 3:
+            encoder_extended_attention_mask = encoder_attention_mask[:, None, :, :]
+        if encoder_attention_mask.dim() == 2:
+            encoder_extended_attention_mask = encoder_attention_mask[:, None, None, :]
+        encoder_extended_attention_mask = encoder_extended_attention_mask.to(dtype=torch.float32)
+        encoder_extended_attention_mask = (1.0 - encoder_extended_attention_mask) * torch.finfo(torch.float32).min
+        return encoder_extended_attention_mask
+
+    def get_head_mask(self, head_mask, num_hidden_layers, is_attention_chunked=False):
+        if head_mask is not None:
+            if head_mask.dim() == 1:
+                head_mask = head_mask.unsqueeze(0).unsqueeze(0).unsqueeze(-1).unsqueeze(-1)
+                head_mask = head_mask.expand(num_hidden_layers, -1, -1, -1, -1)
+            elif head_mask.dim() == 2:
+                head_mask = head_mask.unsqueeze(1).unsqueeze(-1).unsqueeze(-1)
+            if is_attention_chunked:
+                head_mask = head_mask.unsqueeze(-1)
+        else:
+            head_mask = [None] * num_hidden_layers
+        return head_mask
 
     def forward(
         self,
